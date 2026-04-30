@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { DEFAULT_URL } from '../utils/constants';
 
 export interface Tab {
   id: string;
@@ -24,7 +25,7 @@ function nextId(): string {
   return `tab-${_counter}`;
 }
 
-function makeTab(url = ''): Tab {
+function makeTab(url = DEFAULT_URL): Tab {
   return {
     id: nextId(),
     url,
@@ -40,7 +41,7 @@ export function useTabs(): UseTabsReturn {
   const [tabs, setTabs] = useState<Tab[]>([initialTab.current]);
   const [activeTabId, setActiveTabId] = useState<string>(initialTab.current.id);
 
-  const openTab = useCallback((url = '') => {
+  const openTab = useCallback((url = DEFAULT_URL) => {
     const tab = makeTab(url);
     setTabs(prev => [...prev, tab]);
     setActiveTabId(tab.id);
