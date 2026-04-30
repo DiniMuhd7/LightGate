@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "LightGate",
+    "slug": "lightgate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./icons/icon-192.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./icons/icon-192.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a73e8"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.dinimuhd7.lightgate"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./icons/icon-192.png",
+        "backgroundColor": "#1a73e8"
+      },
+      "package": "com.dinimuhd7.lightgate"
+    },
+    "web": {
+      "favicon": "./icons/icon-192.png"
+    }
+  }
+}
