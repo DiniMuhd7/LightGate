@@ -1,0 +1,5 @@
+{
+  "home_page": "https://www.google.com",
+  "search_engine": "https://duckduckgo.com/?q={query}",
+  "download_path": "~/Downloads"
+}
