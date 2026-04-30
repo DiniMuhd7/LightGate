@@ -1,13 +1,14 @@
 {
   "name": "LightGate",
   "short_name": "LightGate",
-  "description": "Lightweight full-screen browser shell for lifegate.dshub.com.ng",
-  "start_url": "/",
+  "description": "Lightweight Mobile Browser — fast, minimal, and built for mobile screens",
+  "start_url": "/index.html",
   "scope": "/",
-  "display": "fullscreen",
-  "orientation": "portrait-primary",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0f2f5",
+  "theme_color": "#1a73e8",
+  "categories": ["utilities", "productivity"],
   "icons": [
     {
       "src": "icons/icon-192.png",

@@ -1,45 +1,68 @@
-/* LightGate Service Worker */
-'use strict';
+/* sw.js — Service Worker for LightGate PWA */
 
-var CACHE_NAME = 'lightgate-v1';
-var SHELL_FILES = [
+const CACHE_NAME = 'lightgate-v1';
+
+const APP_SHELL = [
   '/',
   '/index.html',
   '/css/browser.css',
+  '/css/themes.css',
   '/js/app.js',
-  '/manifest.json'
+  '/js/bookmarks.js',
+  '/js/history.js',
+  '/js/settings.js',
+  '/pages/newtab.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
 ];
 
-self.addEventListener('install', function (event) {
+/* ─── Install: cache app shell ─────────────────────────── */
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(SHELL_FILES);
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', function (event) {
+/* ─── Activate: clean up old caches ────────────────────── */
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.filter(function (key) { return key !== CACHE_NAME; })
-            .map(function (key) { return caches.delete(key); })
-      );
-    })
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+      )
+    )
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', function (event) {
-  // Only intercept same-origin shell requests; pass through cross-origin
-  var url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) {
-    return;
-  }
+/* ─── Fetch: serve from cache, fallback to network ─────── */
+self.addEventListener('fetch', event => {
+  // Only handle GET requests for same-origin resources (app shell)
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // For cross-origin requests (iframes loading external sites), let them pass through
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      return cached || fetch(event.request);
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(response => {
+        // Cache successful GET responses for app shell resources
+        if (response && response.status === 200 && response.type === 'basic') {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+        }
+        return response;
+      });
+    }).catch(() => {
+      // Offline fallback for HTML navigation requests
+      if (event.request.mode === 'navigate') {
+        return caches.match('/index.html');
+      }
     })
   );
 });
