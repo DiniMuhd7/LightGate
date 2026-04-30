@@ -1,0 +1,1 @@
+"""LightGate browser package."""
