@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   TextInput,
@@ -20,15 +20,12 @@ interface Props {
 export function AddressBar({ url, loading, theme, onSubmit }: Props) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const inputRef = useRef<TextInput>(null);
 
   const displayValue = editing ? inputValue : displayUrl(url) || url;
 
   function handleFocus() {
     setEditing(true);
     setInputValue(url);
-    // Select all text on focus
-    inputRef.current?.setNativeProps({ selection: { start: 0, end: url.length } });
   }
 
   function handleBlur() {
@@ -45,7 +42,6 @@ export function AddressBar({ url, loading, theme, onSubmit }: Props) {
   return (
     <View style={styles.container}>
       <TextInput
-        ref={inputRef}
         style={styles.input}
         value={displayValue}
         onChangeText={setInputValue}

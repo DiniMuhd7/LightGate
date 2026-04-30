@@ -42,7 +42,7 @@ export function useBookmarks(): UseBookmarksReturn {
 
   const addBookmark = useCallback(async (title: string, url: string) => {
     const item: Bookmark = {
-      id: `bm-${Date.now()}`,
+      id: `bm-${Date.now()}-${Math.random()}`,
       title: title || url,
       url,
       addedAt: Date.now(),
