@@ -1,0 +1,93 @@
+/* LightGate — full-screen browser shell, zero chrome */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+/* ─── Hidden UI elements ────────────────────────────────────────────────── */
+/* Address / URL bar */
+#url-bar,
+#address-bar,
+.address-bar,
+.url-bar {
+  display: none !important;
+}
+
+/* Navigation controls (Back, Forward, Reload, Home) */
+#nav-controls,
+#navigation,
+.nav-controls,
+.navigation-bar,
+.toolbar,
+#toolbar,
+.browser-toolbar {
+  display: none !important;
+}
+
+/* Tab strip */
+#tab-strip,
+#tabs,
+.tab-strip,
+.tab-bar,
+.tabs-container {
+  display: none !important;
+}
+
+/* Bookmarks */
+#bookmarks,
+.bookmarks-panel,
+.bookmarks-icon,
+.bookmarks-bar {
+  display: none !important;
+}
+
+/* History panel */
+#history,
+.history-panel,
+.history-icon {
+  display: none !important;
+}
+
+/* Settings panel */
+#settings,
+.settings-panel,
+.settings-icon {
+  display: none !important;
+}
+
+/* Loading indicator / progress bar */
+#loading-bar,
+#progress-bar,
+.loading-indicator,
+.progress-bar,
+.loading-bar {
+  display: none !important;
+}
+
+/* Any remaining header/footer chrome in the shell page only (does not affect the iframe) */
+header, footer, nav, aside {
+  display: none !important;
+}
+
+/* ─── Full-screen iframe ─────────────────────────────────────────────────── */
+#browser-frame {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
