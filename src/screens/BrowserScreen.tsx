@@ -13,6 +13,7 @@ import { Tab } from '../hooks/useTabs';
 import { AddressBar } from '../components/AddressBar';
 import { NavControls } from '../components/NavControls';
 import { sanitizeUrl } from '../utils/url';
+import { DEFAULT_URL } from '../utils/constants';
 
 interface Props {
   tab: Tab;
@@ -83,7 +84,7 @@ export function BrowserScreen({
   const handleForward = () => webViewRef.current?.goForward();
   const handleReload = () =>
     loadProgress > 0 ? webViewRef.current?.stopLoading() : webViewRef.current?.reload();
-  const handleHome = () => onNavigate('');
+  const handleHome = () => onNavigate(DEFAULT_URL);
 
   const isLoading = loadProgress > 0 && loadProgress < 1;
   const isNewTab = !tab.url;
