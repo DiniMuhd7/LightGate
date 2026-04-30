@@ -18,7 +18,8 @@ const Bookmarks = (() => {
   function add(title, url) {
     const list = load();
     if (list.some(b => b.url === url)) return false;
-    list.unshift({ id: Date.now(), title: title || url, url, addedAt: Date.now() });
+    const now = Date.now();
+    list.unshift({ id: now, title: title || url, url, addedAt: now });
     save(list);
     return true;
   }
@@ -88,7 +89,7 @@ const Bookmarks = (() => {
 
       li.querySelector('.item-info').addEventListener('click', () => {
         App.navigateTo(b.url);
-        closePanels();
+        App.closeAllPanels();
       });
 
       li.querySelector('.item-action').addEventListener('click', e => {
@@ -105,17 +106,8 @@ const Bookmarks = (() => {
     content.appendChild(ul);
   }
 
-  function closePanels() {
-    document.querySelectorAll('.panel-overlay').forEach(el => el.classList.remove('open'));
-    document.querySelectorAll('.panel').forEach(el => el.classList.remove('open'));
-  }
-
   function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    return App.escapeHtml(str);
   }
 
   return { add, remove, has, getAll, renderPanel };

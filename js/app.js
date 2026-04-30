@@ -7,14 +7,43 @@ const App = (() => {
   let activeTabId = null;
   let menuOpen = false;
   let progressTimer = null;
+  let tabIdCounter = 0;
 
   const HOME_URL = 'newtab';   // sentinel value for new-tab page
+
+  // Progress bar constants
+  const PROGRESS_INCREMENT_MIN  = 3;
+  const PROGRESS_INCREMENT_MAX  = 8;
+  const PROGRESS_MAX_PCT        = 85;
+
+  /* ─── URL Safety ─────────────────────────────────────── */
+
+  // Allowlist-based URL safety: only permit http(s), ftp, and about:blank.
+  // Returns a safe, reconstructed URL string, or null if the input is unsafe.
+  const SAFE_PROTOCOLS = new Set(['https:', 'http:', 'ftp:']);
+
+  function sanitizeUrl(url) {
+    if (!url) return null;
+    if (url.trim() === 'about:blank') return 'about:blank';
+    try {
+      const parsed = new URL(url);
+      return SAFE_PROTOCOLS.has(parsed.protocol) ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Legacy guard used by resolveUrl to reject before URL construction
+  function isSafeUrl(url) {
+    return sanitizeUrl(url) !== null;
+  }
 
   /* ─── Tab Object Factory ─────────────────────────────── */
 
   function createTab(url) {
+    const id = ++tabIdCounter;
     return {
-      id: Date.now() + Math.random(),
+      id,
       url: url || HOME_URL,
       title: 'New Tab',
       favicon: null,
@@ -155,25 +184,27 @@ const App = (() => {
     const trimmed = input.trim();
     if (!trimmed) return 'about:blank';
 
-    // Search query if no dots and no protocol
-    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed) &&
-        !/^localhost(:\d+)?/.test(trimmed) &&
-        !trimmed.includes('.')) {
-      return Settings.getSearchUrl(trimmed);
+    // Only allow http(s), ftp, and about: — everything else becomes a search or gets https:// prepended
+    if (/^(https?|ftp):\/\//i.test(trimmed) || trimmed.startsWith('about:')) {
+      return trimmed;
     }
 
-    // Add https if missing protocol
-    if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) {
+    // Bare hostname (e.g. "example.com") — prepend https://
+    if (/^[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})(\/.*)?$/.test(trimmed) ||
+        /^localhost(:\d+)?(\/.*)?$/.test(trimmed)) {
       return 'https://' + trimmed;
     }
 
-    return trimmed;
+    // Everything else is a search query
+    return Settings.getSearchUrl(trimmed);
   }
 
   function loadUrl(tab, url) {
+    const safeUrl = sanitizeUrl(url);
+    if (!safeUrl) return;
     startProgress();
-    tab.iframe.src = url;
-    History.push(tab.title, url);
+    tab.iframe.setAttribute('src', safeUrl);
+    History.push(tab.title, safeUrl);
   }
 
   function goBack() {
@@ -260,7 +291,7 @@ const App = (() => {
     let pct = 0;
     clearInterval(progressTimer);
     progressTimer = setInterval(() => {
-      pct = Math.min(pct + (Math.random() * 8 + 3), 85);
+      pct = Math.min(pct + (Math.random() * PROGRESS_INCREMENT_MAX + PROGRESS_INCREMENT_MIN), PROGRESS_MAX_PCT);
       bar.style.width = pct + '%';
     }, 300);
   }
@@ -530,5 +561,6 @@ const App = (() => {
   }
 
   return { navigateTo, goBack, goForward, reload, goHome, openNewTab,
-           updateBookmarkBtn, updateAllIframeSandbox, showToast };
+           updateBookmarkBtn, updateAllIframeSandbox, showToast,
+           closeAllPanels, escapeHtml };
 })();

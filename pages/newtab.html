@@ -342,16 +342,29 @@
       let engine = 'https://duckduckgo.com/?q=';
       try {
         if (window.parent && window.parent.Settings) {
-          engine = window.parent.Settings.getSearchUrl('').replace(encodeURIComponent(''), '');
+          const engineKey = window.parent.Settings.get('searchEngine');
+          const engines = window.parent.Settings.SEARCH_ENGINES;
+          if (engines && engines[engineKey]) {
+            engine = engines[engineKey].url;
+          }
         }
       } catch { /* cross-origin */ }
       url = engine + encodeURIComponent(query);
     }
 
+    // Reconstruct URL through the browser's URL parser to break taint chain
+    // and verify it uses a safe protocol (http, https, ftp only)
+    let safeUrl;
+    try {
+      const parsed = new URL(url);
+      if (!['https:', 'http:', 'ftp:'].includes(parsed.protocol)) return;
+      safeUrl = parsed.href;
+    } catch { return; }
+
     if (window.parent && window.parent !== window) {
-      window.parent.App.navigateTo(url);
+      window.parent.App.navigateTo(safeUrl);
     } else {
-      window.location.href = url;
+      window.location.assign(safeUrl);
     }
   });
 </script>

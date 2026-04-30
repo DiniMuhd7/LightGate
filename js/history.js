@@ -26,7 +26,8 @@ const History = (() => {
       save(list);
       return;
     }
-    list.unshift({ id: Date.now(), title: title || url, url, visitedAt: Date.now() });
+    const now = Date.now();
+    list.unshift({ id: now, title: title || url, url, visitedAt: now });
     if (list.length > MAX_ITEMS) list.length = MAX_ITEMS;
     save(list);
   }
@@ -95,7 +96,7 @@ const History = (() => {
 
       li.querySelector('.item-info').addEventListener('click', () => {
         App.navigateTo(item.url);
-        closePanels();
+        App.closeAllPanels();
       });
 
       li.querySelector('.item-action').addEventListener('click', e => {
@@ -112,17 +113,8 @@ const History = (() => {
     content.appendChild(ul);
   }
 
-  function closePanels() {
-    document.querySelectorAll('.panel-overlay').forEach(el => el.classList.remove('open'));
-    document.querySelectorAll('.panel').forEach(el => el.classList.remove('open'));
-  }
-
   function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    return App.escapeHtml(str);
   }
 
   return { push, clear, getAll, renderPanel };
