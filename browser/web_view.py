@@ -6,7 +6,7 @@ and middle-click / Ctrl+click new-tab support.
 
 from PyQt6.QtCore import QUrl, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtCore import Qt
 
@@ -34,6 +34,15 @@ class WebView(QWebEngineView):
         if profile:
             page = QWebEnginePage(profile, self)
             self.setPage(page)
+
+        # Enable Chrome-compatible responsive rendering for this view.
+        s = self.page().settings()
+        s.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+        s.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+        s.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
+        s.setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+        s.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
+        s.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True)
 
         # Forward navigation-request signals so the tab bar title updates.
         self.titleChanged.connect(self._on_title_changed)

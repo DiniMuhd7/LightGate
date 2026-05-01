@@ -86,10 +86,25 @@ class BrowserWindow(QMainWindow):
         home = self._settings.get("home_page", "https://www.google.com")
         self._tabs.add_tab(QUrl(home))
 
-        # Hook the download manager into the default web profile.
-        from PyQt6.QtWebEngineCore import QWebEngineProfile
+        # Hook the download manager into the default web profile and
+        # configure it for Chrome-compatible responsive rendering.
+        from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
         profile = QWebEngineProfile.defaultProfile()
         profile.downloadRequested.connect(self._downloads.handle_download)
+
+        # Spoof a Chrome desktop UA so sites serve responsive layouts and
+        # enable modern APIs (service workers, WebRTC, etc.).
+        profile.setHttpUserAgent(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+        )
+        _ps = profile.settings()
+        _ps.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+        _ps.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+        _ps.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
+        _ps.setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+        _ps.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
+        _ps.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, True)
 
     # ------------------------------------------------------------------
     # Public API

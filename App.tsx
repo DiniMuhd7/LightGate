@@ -11,7 +11,6 @@ import { useSettings } from './src/hooks/useSettings';
 
 import { BrowserScreen } from './src/screens/BrowserScreen';
 import { NewTabScreen } from './src/screens/NewTabScreen';
-import { TabBar } from './src/components/TabBar';
 import { BookmarksPanel } from './src/components/BookmarksPanel';
 import { HistoryPanel } from './src/components/HistoryPanel';
 import { SettingsPanel } from './src/components/SettingsPanel';
@@ -32,6 +31,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [tabProgress, setTabProgress] = useState<Record<string, number>>({});
+  const [clearCacheSignal, setClearCacheSignal] = useState(0);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -123,19 +123,10 @@ export default function App() {
             isBookmarked={isCurrentBookmarked}
             loadProgress={currentProgress}
             onLoadProgress={handleLoadProgress}
+            clearCacheSignal={clearCacheSignal}
           />
         ) : null}
       </View>
-
-      {/* Tab bar */}
-      <TabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        theme={theme}
-        onSelectTab={selectTab}
-        onCloseTab={closeTab}
-        onNewTab={() => openTab()}
-      />
 
       {/* Panels */}
       <BookmarksPanel
@@ -160,7 +151,7 @@ export default function App() {
         theme={theme}
         onClose={() => setShowSettings(false)}
         onUpdateSetting={updateSetting}
-        onClearData={clearAllData}
+        onClearData={() => { clearAllData(); setClearCacheSignal(s => s + 1); }}
       />
     </View>
   );
