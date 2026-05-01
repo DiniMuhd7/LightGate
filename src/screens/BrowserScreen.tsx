@@ -244,7 +244,7 @@ export function BrowserScreen({
           style={styles.webview}
           /* ── Identity ── */
           userAgent={CHROME_UA}
-          applicationNameForUserAgent="LightGate/1.0"
+          applicationNameForUserAgent="LifeGate/1.0"
           /* ── JS & Storage ── */
           originWhitelist={['*']}
           javaScriptEnabled={javaScriptEnabled}

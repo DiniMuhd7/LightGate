@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = '@lightgate_history';
+const STORAGE_KEY = '@lifegate_history';
 const MAX_HISTORY = 500;
 
 export interface HistoryEntry {

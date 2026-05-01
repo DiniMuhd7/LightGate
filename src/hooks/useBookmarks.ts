@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = '@lightgate_bookmarks';
+const STORAGE_KEY = '@lifegate_bookmarks';
 
 export interface Bookmark {
   id: string;

@@ -156,7 +156,7 @@ export function SettingsPanel({
           </View>
 
           {/* Version */}
-          <Text style={styles.version}>LightGate v1.0.0</Text>
+          <Text style={styles.version}>LifeGate v1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
     </Modal>

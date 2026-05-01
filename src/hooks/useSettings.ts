@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = '@lightgate_settings';
+const STORAGE_KEY = '@lifegate_settings';
 
 export interface Settings {
   searchEngine: 'duckduckgo' | 'google' | 'bing';
@@ -62,8 +62,8 @@ export function useSettings(): UseSettingsReturn {
     try {
       await AsyncStorage.multiRemove([
         STORAGE_KEY,
-        '@lightgate_bookmarks',
-        '@lightgate_history',
+        '@lifegate_bookmarks',
+        '@lifegate_history',
       ]);
     } catch {
       // ignore storage errors

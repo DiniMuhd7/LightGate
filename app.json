@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "LightGate",
-    "slug": "lightgate",
+    "name": "LifeGate",
+    "slug": "lifegate",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./icons/icon-192.png",
@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dinimuhd7.lightgate"
+      "bundleIdentifier": "com.dinimuhd7.lifegate"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./icons/icon-192.png",
         "backgroundColor": "#1a73e8"
       },
-      "package": "com.dinimuhd7.lightgate"
+      "package": "com.dinimuhd7.lifegate"
     },
     "web": {
       "favicon": "./icons/icon-192.png"
