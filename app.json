@@ -4,13 +4,13 @@
     "slug": "lifegate",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./icons/icon-192.png",
+    "icon": "./icons/icon-512.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
-      "image": "./icons/icon-192.png",
+      "image": "./icons/icon-512.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a73e8"
+      "backgroundColor": "#0B5E52"
     },
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "LifeGate needs microphone access for websites that use voice input.",
         "NSCameraUsageDescription": "LifeGate needs camera access for websites that use the camera.",
-        "NSLocationWhenInUseUsageDescription": "LifeGate needs location access for websites that use your location."
+        "NSLocationWhenInUseUsageDescription": "LifeGate needs location access for websites that use your location.",
+        "NSSpeechRecognitionUsageDescription": "LifeGate uses speech recognition so you can speak to websites that support voice input."
       },
       "entitlements": {
         "aps-environment": "production"
@@ -26,8 +27,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./icons/icon-192.png",
-        "backgroundColor": "#1a73e8"
+        "foregroundImage": "./icons/icon-512.png",
+        "backgroundColor": "#0B5E52"
       },
       "package": "com.dinimuhd7.lifegate",
       "softwareKeyboardLayoutMode": "resize",
@@ -45,6 +46,8 @@
       "favicon": "./icons/icon-192.png"
     },
     "plugins": [
+      "expo-camera",
+      "@react-native-voice/voice",
       [
         "expo-notifications",
         {

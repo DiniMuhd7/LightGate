@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   PermissionsAndroid,
 } from 'react-native';
+import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebView, { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -251,6 +253,193 @@ const CHROME_COMPAT_SCRIPT = `
 
       try { window.Notification = FakeNotification; } catch (_) {}
       try { Object.defineProperty(window, 'Notification', { value: FakeNotification, writable: true, configurable: true }); } catch (_) {}
+    }
+
+    /* ── 7. getUserMedia / SpeechRecognition bridge ───────────────────
+       Android WebView does NOT expose navigator.mediaDevices in all
+       contexts, and SpeechRecognition / webkitSpeechRecognition are
+       Chrome-only APIs absent from WebView entirely.
+       We restore the standard Promise-based getUserMedia on mediaDevices
+       and shim a SpeechRecognition that records audio via getUserMedia,
+       sends raw chunks as base64 through the RN bridge, and lets the
+       native side forward them to the OS speech engine.               */
+    if (!window.__lgMediaPatched) {
+      window.__lgMediaPatched = true;
+
+      /* ── 7a. navigator.mediaDevices native camera bridge ── */
+      /* On Android, getUserMedia({video}) is routed through the expo-camera
+         native overlay instead of the sandbox-restricted WebView camera.
+         Audio-only calls still use the WebView's native media path.
+         iOS keeps the native WebView path (works reliably there).         */
+      try {
+        if (!navigator.mediaDevices) {
+          try {
+            Object.defineProperty(navigator, 'mediaDevices', {
+              value: {}, writable: true, configurable: true,
+            });
+          } catch (_) { navigator.mediaDevices = {}; }
+        }
+
+        /* Keep a reference to whatever the WebView exposes natively */
+        var _nativeGUM = navigator.mediaDevices.getUserMedia
+          ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+          : null;
+
+        /* Promote old prefixed callback API to Promise if needed */
+        var _legacyGUM = (navigator.webkitGetUserMedia || navigator.mozGetUserMedia);
+        if (!_nativeGUM && _legacyGUM) {
+          _nativeGUM = function (c) {
+            return new Promise(function (res, rej) { _legacyGUM.call(navigator, c, res, rej); });
+          };
+        }
+
+        /* Override getUserMedia — route video requests to native bridge on Android */
+        navigator.mediaDevices.getUserMedia = function (constraints) {
+          var wantsVideo = constraints && (constraints.video === true || (constraints.video && typeof constraints.video === 'object'));
+          if (wantsVideo && _isAndroid) {
+            return new Promise(function (resolve, reject) {
+              var _reqId = Math.random().toString(36).slice(2);
+              window.__lgCameraResolvers = window.__lgCameraResolvers || {};
+              window.__lgCameraResolvers[_reqId] = { resolve: resolve, reject: reject };
+              try {
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                  JSON.stringify({ type: 'LG_CAMERA_REQUEST', id: _reqId, audio: !!(constraints.audio) })
+                );
+              } catch (_e) {
+                reject(new DOMException('Native camera bridge error', 'NotAllowedError'));
+              }
+            });
+          }
+          /* Audio-only or iOS: use native WebView path */
+          if (_nativeGUM) return _nativeGUM(constraints);
+          return Promise.reject(new DOMException('getUserMedia not supported', 'NotSupportedError'));
+        };
+
+        /* __lgCameraFrame — injected by native after photo capture.
+           Draws the base64 JPEG onto a hidden canvas then resolves the
+           getUserMedia Promise with a canvas.captureStream() MediaStream.  */
+        window.__lgCameraFrame = function (reqId, base64Jpeg) {
+          var res = (window.__lgCameraResolvers || {})[reqId];
+          if (!res) return;
+          try {
+            var canvas = document.createElement('canvas');
+            canvas.width = 1280; canvas.height = 720;
+            var ctx = canvas.getContext('2d');
+            var img = new Image();
+            img.onload = function () {
+              try {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                var stream = canvas.captureStream ? canvas.captureStream(0)
+                  : { getTracks: function () { return []; }, getVideoTracks: function () { return []; }, getAudioTracks: function () { return []; } };
+                res.resolve(stream);
+                delete (window.__lgCameraResolvers || {})[reqId];
+              } catch (_e) { res.reject(new DOMException('Stream creation failed', 'NotReadableError')); }
+            };
+            img.onerror = function () { res.reject(new DOMException('Frame decode failed', 'NotReadableError')); };
+            img.src = 'data:image/jpeg;base64,' + base64Jpeg;
+          } catch (_e) { res.reject(new DOMException('Camera bridge error', 'NotAllowedError')); }
+        };
+
+        /* __lgCameraError — injected by native on cancel / permission denied */
+        window.__lgCameraError = function (reqId, errName) {
+          var res = (window.__lgCameraResolvers || {})[reqId];
+          if (!res) return;
+          res.reject(new DOMException('Camera unavailable', errName || 'NotAllowedError'));
+          delete (window.__lgCameraResolvers || {})[reqId];
+        };
+
+        /* Ensure webkit-prefixed alias mirrors the patched API */
+        try {
+          navigator.webkitGetUserMedia = function (c, ok, err) {
+            navigator.mediaDevices.getUserMedia(c).then(ok).catch(err);
+          };
+        } catch (_) {}
+
+        /* Patch navigator.permissions.query to always report microphone/camera granted */
+        if (navigator.permissions && navigator.permissions.query) {
+          var _origQuery = navigator.permissions.query.bind(navigator.permissions);
+          navigator.permissions.query = function (desc) {
+            if (desc && (desc.name === 'microphone' || desc.name === 'camera')) {
+              return Promise.resolve({ state: 'granted', onchange: null });
+            }
+            return _origQuery(desc);
+          };
+        }
+      } catch (_) {}
+
+      /* ── 7b. SpeechRecognition shim via postMessage bridge ── */
+      /* Android WebView has no SpeechRecognition. We shim the standard
+         interface so pages that feature-detect it don't silently fail.
+         The shim sends LG_SPEECH_START / LG_SPEECH_STOP messages to the
+         native side; if recognition results come back, they are dispatched
+         as SpeechRecognitionEvent-like CustomEvents on the instance.       */
+      if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+        try {
+          function LGSpeechRecognition() {
+            this.lang = 'en-US';
+            this.continuous = false;
+            this.interimResults = false;
+            this.maxAlternatives = 1;
+            this.onstart = null;
+            this.onend = null;
+            this.onresult = null;
+            this.onerror = null;
+            this._id = Math.random().toString(36).slice(2);
+            /* Register this instance so incoming messages can route back */
+            window.__lgSpeechInstances = window.__lgSpeechInstances || {};
+            window.__lgSpeechInstances[this._id] = this;
+          }
+
+          LGSpeechRecognition.prototype.start = function () {
+            var self = this;
+            try {
+              if (self.onstart) self.onstart({});
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                JSON.stringify({ type: 'LG_SPEECH_START', id: self._id, lang: self.lang, continuous: self.continuous })
+              );
+            } catch (_) {}
+          };
+
+          LGSpeechRecognition.prototype.stop = function () {
+            try {
+              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                JSON.stringify({ type: 'LG_SPEECH_STOP', id: this._id })
+              );
+              if (this.onend) this.onend({});
+            } catch (_) {}
+          };
+
+          LGSpeechRecognition.prototype.abort = function () { this.stop(); };
+
+          /* Result dispatcher — called from handleMessage on the RN side */
+          window.__lgSpeechResult = function (id, transcript, isFinal) {
+            try {
+              var inst = (window.__lgSpeechInstances || {})[id];
+              if (!inst || !inst.onresult) return;
+              var result = { transcript: transcript, confidence: 0.9, isFinal: isFinal };
+              var resultList = [result];
+              resultList.isFinal = isFinal;
+              inst.onresult({ results: [resultList], resultIndex: 0 });
+              if (isFinal && !inst.continuous && inst.onend) { inst.onend({}); }
+            } catch (_) {}
+          };
+
+          window.__lgSpeechError = function (id, errorMsg) {
+            try {
+              var inst = (window.__lgSpeechInstances || {})[id];
+              if (inst && inst.onerror) inst.onerror({ error: errorMsg || 'not-allowed' });
+              if (inst && inst.onend) inst.onend({});
+            } catch (_) {}
+          };
+
+          try { window.SpeechRecognition = LGSpeechRecognition; } catch (_) {}
+          try { window.webkitSpeechRecognition = LGSpeechRecognition; } catch (_) {}
+          try {
+            Object.defineProperty(window, 'SpeechRecognition', { value: LGSpeechRecognition, writable: true, configurable: true });
+            Object.defineProperty(window, 'webkitSpeechRecognition', { value: LGSpeechRecognition, writable: true, configurable: true });
+          } catch (_) {}
+        } catch (_) {}
+      }
     }
 
   } catch (_) {}
@@ -632,6 +821,11 @@ export function BrowserScreen({
   const styles = makeStyles(theme);
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
   const [pageColor, setPageColor] = useState<string | null>(null);
+  const speechSessionRef = useRef<{ id: string; continuous: boolean } | null>(null);
+  const cameraRef = useRef<CameraView>(null);
+  const [cameraRequest, setCameraRequest] = useState<{ id: string; audio: boolean } | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
+  const [, requestCameraPermission] = useCameraPermissions();
 
   const handleRetry = useCallback(() => {
     setErrorKind(null);
@@ -754,7 +948,7 @@ export function BrowserScreen({
 
   // Receive SPA navigation events posted by CHROME_COMPAT_SCRIPT.
   const handleMessage = useCallback(
-    (event: { nativeEvent: { data: string } }) => {
+    async (event: { nativeEvent: { data: string } }) => {
       try {
         const msg = JSON.parse(event.nativeEvent.data);
         if (msg.type === 'LG_HISTORY') {
@@ -767,6 +961,28 @@ export function BrowserScreen({
           onShowNotification(msg.title || 'LifeGate', msg.body || '');
         } else if (msg.type === 'LG_THEME_COLOR' && msg.color) {
           setPageColor(msg.color);
+        } else if (msg.type === 'LG_SPEECH_START') {
+          speechSessionRef.current = { id: msg.id, continuous: !!msg.continuous };
+          try {
+            await Voice.start(msg.lang || 'en-US');
+          } catch (e) {
+            webViewRef.current?.injectJavaScript(
+              `try{window.__lgSpeechError&&window.__lgSpeechError(${JSON.stringify(msg.id)},'not-allowed');}catch(_){}true;`
+            );
+            speechSessionRef.current = null;
+          }
+        } else if (msg.type === 'LG_SPEECH_STOP') {
+          try { await Voice.stop(); } catch (_) {}
+          speechSessionRef.current = null;
+        } else if (msg.type === 'LG_CAMERA_REQUEST') {
+          const granted = await requestCameraPermission();
+          if (!granted.granted) {
+            webViewRef.current?.injectJavaScript(
+              `try{window.__lgCameraError&&window.__lgCameraError(${JSON.stringify(msg.id)},'NotAllowedError');}catch(_){}true;`
+            );
+          } else {
+            setCameraRequest({ id: msg.id, audio: !!msg.audio });
+          }
         }
       } catch (_) {}
     },
@@ -788,6 +1004,78 @@ export function BrowserScreen({
     Linking.openURL(url).catch(() => undefined);
     return false;
   }, []);
+
+  // Voice recognition listeners — wire @react-native-voice/voice results
+  // back into the WebView's SpeechRecognition shim.
+  useEffect(() => {
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      const sess = speechSessionRef.current;
+      if (!sess || !e.value?.length) return;
+      const transcript = e.value[0];
+      webViewRef.current?.injectJavaScript(
+        `try{window.__lgSpeechResult&&window.__lgSpeechResult(${JSON.stringify(sess.id)},${JSON.stringify(transcript)},true);}catch(_){}true;`
+      );
+      if (!sess.continuous) speechSessionRef.current = null;
+    };
+
+    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      const sess = speechSessionRef.current;
+      if (!sess || !e.value?.length) return;
+      webViewRef.current?.injectJavaScript(
+        `try{window.__lgSpeechResult&&window.__lgSpeechResult(${JSON.stringify(sess.id)},${JSON.stringify(e.value[0])},false);}catch(_){}true;`
+      );
+    };
+
+    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+      const sess = speechSessionRef.current;
+      if (!sess) return;
+      const errCode = e.error?.code ?? 'error';
+      webViewRef.current?.injectJavaScript(
+        `try{window.__lgSpeechError&&window.__lgSpeechError(${JSON.stringify(sess.id)},${JSON.stringify(String(errCode))});}catch(_){}true;`
+      );
+      speechSessionRef.current = null;
+    };
+
+    Voice.onSpeechEnd = () => {
+      const sess = speechSessionRef.current;
+      if (!sess) return;
+      // Fire onend so the page can update its UI
+      webViewRef.current?.injectJavaScript(
+        `try{var _i=(window.__lgSpeechInstances||{})[${JSON.stringify(sess.id)}];if(_i&&_i.onend)_i.onend({});}catch(_){}true;`
+      );
+      if (!sess.continuous) speechSessionRef.current = null;
+    };
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+    };
+  }, []);
+
+  const handleCameraCapture = useCallback(async () => {
+    if (!cameraRef.current || !cameraRequest) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.85 });
+      const b64 = photo?.base64;
+      if (!b64) throw new Error('no base64');
+      webViewRef.current?.injectJavaScript(
+        `try{window.__lgCameraFrame&&window.__lgCameraFrame(${JSON.stringify(cameraRequest.id)},${JSON.stringify(b64)});}catch(_){}true;`
+      );
+    } catch (_) {
+      webViewRef.current?.injectJavaScript(
+        `try{window.__lgCameraError&&window.__lgCameraError(${JSON.stringify(cameraRequest.id)},'NotReadableError');}catch(_){}true;`
+      );
+    } finally {
+      setCameraRequest(null);
+    }
+  }, [cameraRequest]);
+
+  const handleCameraCancel = useCallback(() => {
+    if (!cameraRequest) return;
+    webViewRef.current?.injectJavaScript(
+      `try{window.__lgCameraError&&window.__lgCameraError(${JSON.stringify(cameraRequest.id)},'NotAllowedError');}catch(_){}true;`
+    );
+    setCameraRequest(null);
+  }, [cameraRequest]);
 
   const insets = useSafeAreaInsets();
   const navBarHeight = Platform.OS === 'android' ? insets.bottom : 0;
@@ -867,7 +1155,37 @@ export function BrowserScreen({
           behind the transparent Android system nav bar. Works in both Expo Go
           and APK without needing NavigationBar API (blocked in edge-to-edge). */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || theme.primary }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || '#0AADA2' }]} />
+      )}
+
+      {/* Native camera overlay — shown when the webpage calls getUserMedia({video}).
+          expo-camera captures a full-res photo and injects it back as a
+          canvas.captureStream() MediaStream so the page receives a real frame. */}
+      {cameraRequest !== null && (
+        <View style={styles.cameraOverlay}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.cameraFill}
+            facing={cameraFacing}
+          />
+          {/* Cancel button — top left */}
+          <TouchableOpacity style={styles.cameraCancelBtn} onPress={handleCameraCancel}>
+            <Text style={styles.cameraCancelText}>✕</Text>
+          </TouchableOpacity>
+          {/* Flip button — top right */}
+          <TouchableOpacity
+            style={styles.cameraFlipBtn}
+            onPress={() => setCameraFacing(f => f === 'back' ? 'front' : 'back')}
+          >
+            <Text style={styles.cameraFlipText}>⟳</Text>
+          </TouchableOpacity>
+          {/* Shutter button — bottom centre */}
+          <View style={styles.cameraShutterRow}>
+            <TouchableOpacity style={styles.cameraShutter} onPress={handleCameraCapture}>
+              <View style={styles.cameraShutterInner} />
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -893,6 +1211,69 @@ function makeStyles(theme: Theme) {
     newTabHint: {
       fontSize: 16,
       color: theme.textMuted,
+    },
+    cameraOverlay: {
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: '#000',
+    },
+    cameraFill: {
+      flex: 1,
+    },
+    cameraCancelBtn: {
+      position: 'absolute',
+      top: 52,
+      left: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cameraCancelText: {
+      color: '#fff',
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    cameraFlipBtn: {
+      position: 'absolute',
+      top: 52,
+      right: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cameraFlipText: {
+      color: '#fff',
+      fontSize: 22,
+      fontWeight: '700',
+    },
+    cameraShutterRow: {
+      position: 'absolute',
+      bottom: 48,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    },
+    cameraShutter: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      borderWidth: 3,
+      borderColor: '#fff',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cameraShutterInner: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: '#fff',
     },
   });
 }
