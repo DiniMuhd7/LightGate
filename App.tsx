@@ -100,6 +100,7 @@ export default function App() {
     <SafeAreaProvider>
     <SafeAreaView
       style={[styles.root, { backgroundColor: theme.background }]}
+      edges={['bottom']}
     >
       <ExpoStatusBar style={statusBarStyle} />
 
