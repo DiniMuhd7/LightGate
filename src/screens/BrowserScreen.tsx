@@ -804,7 +804,7 @@ export function BrowserScreen({
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loadingOverlay}>
-              <HeartbeatLoader color="#0AADA2" />
+              <HeartbeatLoader color="#22C55E" />
               <Text style={styles.loadingBrand}>LifeGate</Text>
             </View>
           )}
@@ -859,7 +859,7 @@ function makeStyles(theme: Theme) {
       fontSize: 18,
       fontWeight: '600' as const,
       letterSpacing: 2,
-      color: '#0AADA2',
+      color: '#22C55E',
       opacity: 0.85,
     },
     newTabPlaceholder: {
