@@ -8,6 +8,7 @@ import { useTabs } from './src/hooks/useTabs';
 import { useBookmarks } from './src/hooks/useBookmarks';
 import { useHistory } from './src/hooks/useHistory';
 import { useSettings } from './src/hooks/useSettings';
+import { useNotifications } from './src/hooks/useNotifications';
 
 import { BrowserScreen } from './src/screens/BrowserScreen';
 import { NewTabScreen } from './src/screens/NewTabScreen';
@@ -26,6 +27,7 @@ export default function App() {
   const { tabs, activeTabId, activeTab, openTab, closeTab, selectTab, updateTab } = useTabs();
   const { bookmarks, addBookmark, removeBookmark, isBookmarked, loadBookmarks } = useBookmarks();
   const { history, addHistory, clearHistory, loadHistory } = useHistory();
+  const { showWebNotification } = useNotifications();
 
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -123,6 +125,7 @@ export default function App() {
             isBookmarked={isCurrentBookmarked}
             loadProgress={currentProgress}
             onLoadProgress={handleLoadProgress}
+            onShowNotification={showWebNotification}
             clearCacheSignal={clearCacheSignal}
           />
         ) : null}

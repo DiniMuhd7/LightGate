@@ -19,6 +19,9 @@
         "NSMicrophoneUsageDescription": "LifeGate needs microphone access for websites that use voice input.",
         "NSCameraUsageDescription": "LifeGate needs camera access for websites that use the camera.",
         "NSLocationWhenInUseUsageDescription": "LifeGate needs location access for websites that use your location."
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -33,12 +36,24 @@
         "MODIFY_AUDIO_SETTINGS",
         "CAMERA",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
       ]
     },
     "web": {
       "favicon": "./icons/icon-192.png"
     },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./icons/icon-192.png",
+          "color": "#0AADA2",
+          "defaultChannel": "default"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "a4da11a9-4348-4b5b-9c84-9cc4c8e95b13"

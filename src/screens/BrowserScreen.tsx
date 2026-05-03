@@ -138,6 +138,42 @@ const CHROME_COMPAT_SCRIPT = `
       }
     }, true);
 
+    /* ── 6. window.Notification bridge ───────────────────────────────
+       WebView blocks the real Notification API. We shim it so sites
+       that call  new Notification(title, opts)  or
+       Notification.requestPermission()  route through the native layer. */
+    if (!window.__lgNotificationPatched) {
+      window.__lgNotificationPatched = true;
+
+      function _postNotif(title, opts) {
+        try {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+            JSON.stringify({
+              type: 'LG_NOTIFICATION',
+              title: String(title || ''),
+              body: String((opts && opts.body) || ''),
+              icon: String((opts && opts.icon) || ''),
+            })
+          );
+        } catch (_) {}
+      }
+
+      function FakeNotification(title, opts) {
+        _postNotif(title, opts);
+        this.close = function () {};
+        this.addEventListener = function () {};
+      }
+      FakeNotification.permission = 'granted';
+      FakeNotification.requestPermission = function (cb) {
+        var result = 'granted';
+        if (cb) cb(result);
+        return Promise.resolve(result);
+      };
+
+      try { window.Notification = FakeNotification; } catch (_) {}
+      try { Object.defineProperty(window, 'Notification', { value: FakeNotification, writable: true, configurable: true }); } catch (_) {}
+    }
+
   } catch (_) {}
 })();
 true;
@@ -416,6 +452,7 @@ interface Props {
   isBookmarked: boolean;
   loadProgress: number;
   onLoadProgress: (progress: number) => void;
+  onShowNotification: (title: string, body: string) => void;
   clearCacheSignal?: number;
 }
 
@@ -433,6 +470,7 @@ export function BrowserScreen({
   isBookmarked,
   loadProgress,
   onLoadProgress,
+  onShowNotification,
   clearCacheSignal = 0,
 }: Props) {
   const webViewRef = useRef<WebView>(null);
@@ -545,10 +583,12 @@ export function BrowserScreen({
             url: msg.url || tab.url,
             title: msg.title || tab.title,
           });
+        } else if (msg.type === 'LG_NOTIFICATION') {
+          onShowNotification(msg.title || 'LifeGate', msg.body || '');
         }
       } catch (_) {}
     },
-    [tab.id, tab.url, tab.title, onUpdateTab],
+    [tab.id, tab.url, tab.title, onUpdateTab, onShowNotification],
   );
 
   const isNewTab = !tab.url;
