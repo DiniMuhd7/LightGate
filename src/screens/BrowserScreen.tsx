@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import WebView, { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as NavigationBar from 'expo-navigation-bar';
 import { Theme } from '../theme';
 import { Tab } from '../hooks/useTabs';
 
@@ -657,8 +658,13 @@ export function BrowserScreen({
         return prev;
       });
       onLoadProgress(0);
+      // Re-apply nav bar colour on every page load — subpage navigations can
+      // reset it if the page sets its own theme-color meta tag.
+      if (Platform.OS === 'android') {
+        NavigationBar.setBackgroundColorAsync(theme.primary).catch(() => {});
+      }
     },
-    [onAddHistory, onLoadProgress],
+    [onAddHistory, onLoadProgress, theme.primary],
   );
 
   // Receive SPA navigation events posted by CHROME_COMPAT_SCRIPT.
