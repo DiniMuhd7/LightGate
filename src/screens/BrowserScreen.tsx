@@ -277,7 +277,7 @@ function HeartbeatLoader({ color }: { color: string }) {
   );
 }
 
- = 'offline' | 'notfound' | 'server' | 'generic';
+type ErrorKind = 'offline' | 'notfound' | 'server' | 'generic';
 
 function ErrorPage({ kind, theme, onRetry }: { kind: ErrorKind; theme: Theme; onRetry: () => void }) {
   const cfg = {
