@@ -2,7 +2,7 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  ActivityIndicator,
+  Animated,
   StyleSheet,
   Platform,
   Linking,
@@ -143,7 +143,105 @@ const CHROME_COMPAT_SCRIPT = `
 true;
 `;
 
-type ErrorKind = 'offline' | 'notfound' | 'server' | 'generic';
+// ── Heart-rate / ECG loading animation ───────────────────────────────────────
+function HeartbeatLoader({ color }: { color: string }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    function pulse() {
+      if (cancelled) return;
+      progress.setValue(0);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1600,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (finished && !cancelled) setTimeout(pulse, 250);
+      });
+    }
+    pulse();
+    return () => { cancelled = true; };
+  }, [progress]);
+
+  // ECG waveform path: [x1, y1, x2, y2] within a 160 × 48 canvas
+  const SEGS: [number, number, number, number][] = [
+    [0,   34, 22,  34],  // baseline left
+    [22,  34, 28,  28],  // P wave rise
+    [28,  28, 34,  34],  // P wave fall
+    [34,  34, 52,  34],  // baseline
+    [52,  34, 57,  40],  // Q dip
+    [57,  40, 66,   2],  // R rise (main spike)
+    [66,   2, 75,  44],  // S fall
+    [75,  44, 81,  34],  // back to baseline
+    [81,  34, 98,  34],  // baseline
+    [98,  34, 109, 18],  // T wave rise
+    [109, 18, 121, 34],  // T wave fall
+    [121, 34, 160, 34],  // baseline right
+  ];
+
+  const W = 160;
+  const H = 48;
+  const STROKE = 2.5;
+
+  function seg(x1: number, y1: number, x2: number, y2: number, c: string) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return {
+      position: 'absolute' as const,
+      width: len,
+      height: STROKE,
+      backgroundColor: c,
+      left: (x1 + x2) / 2 - len / 2,
+      top: (y1 + y2) / 2 - STROKE / 2,
+      transform: [{ rotate: `${angle}deg` }],
+    };
+  }
+
+  const clipW = progress.interpolate({ inputRange: [0, 1], outputRange: [0, W] });
+
+  return (
+    <View style={{ width: W, height: H }}>
+      {/* Dim ghost path always visible */}
+      {SEGS.map(([x1, y1, x2, y2], i) => (
+        <View key={`g${i}`} style={seg(x1, y1, x2, y2, color + '28')} />
+      ))}
+      {/* Animated bright path revealed left-to-right */}
+      <Animated.View
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          width: clipW, height: H, overflow: 'hidden',
+        }}
+      >
+        <View style={{ position: 'absolute', top: 0, left: 0, width: W, height: H }}>
+          {SEGS.map(([x1, y1, x2, y2], i) => (
+            <View key={`b${i}`} style={seg(x1, y1, x2, y2, color)} />
+          ))}
+        </View>
+        {/* Glowing scan-head dot at leading edge */}
+        <View
+          style={{
+            position: 'absolute',
+            right: -4,
+            top: H / 2 - 5,
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: color,
+            shadowColor: color,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 1,
+            shadowRadius: 8,
+            elevation: 6,
+          }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+ = 'offline' | 'notfound' | 'server' | 'generic';
 
 function ErrorPage({ kind, theme, onRetry }: { kind: ErrorKind; theme: Theme; onRetry: () => void }) {
   const cfg = {
@@ -522,7 +620,7 @@ export function BrowserScreen({
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={theme.primary} />
+              <HeartbeatLoader color={theme.primary} />
             </View>
           )}
           /* Suppress native WebView error UI — our overlay handles it */
