@@ -14,17 +14,32 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dinimuhd7.lifegate"
+      "bundleIdentifier": "com.dinimuhd7.lifegate",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "LifeGate needs microphone access for websites that use voice input.",
+        "NSCameraUsageDescription": "LifeGate needs camera access for websites that use the camera."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./icons/icon-192.png",
         "backgroundColor": "#1a73e8"
       },
-      "package": "com.dinimuhd7.lifegate"
+      "package": "com.dinimuhd7.lifegate",
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./icons/icon-192.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a4da11a9-4348-4b5b-9c84-9cc4c8e95b13"
+      }
     }
   }
 }

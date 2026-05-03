@@ -117,6 +117,25 @@ const CHROME_COMPAT_SCRIPT = `
       return _origError ? _origError.apply(this, arguments) : false;
     };
 
+    /* ── 5. Scroll focused inputs into view when keyboard opens ──────
+       Prevents the keyboard from covering the active input field,
+       matching the behaviour users expect from Chrome Mobile.          */
+    document.addEventListener('focusin', function (e) {
+      var el = e.target;
+      if (
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.isContentEditable)
+      ) {
+        setTimeout(function () {
+          try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch (_) {}
+        }, 350);
+      }
+    }, true);
+
   } catch (_) {}
 })();
 true;
@@ -263,14 +282,23 @@ export function BrowserScreen({
           allowsFullscreenVideo
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
+          /* Auto-grant microphone / camera to the WebView on iOS         */
+          mediaCapturePermissionGrantType="grant"
+          /* Grant microphone / camera / geolocation on Android           */
+          onPermissionRequest={(e) => e.nativeEvent.request.grant(e.nativeEvent.request.resources)}
           /* ── Rendering ── */
-          scalesPageToFit={Platform.OS === 'android'}
+          scalesPageToFit={false}
           textZoom={100}
           mixedContentMode="compatibility"
           decelerationRate={Platform.OS === 'ios' ? 'normal' : undefined}
           automaticallyAdjustContentInsets={false}
-          contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'never' : undefined}
+          /* scrollableAxes lets the system adjust for the keyboard on iOS
+             without also adjusting for the status-bar safe area          */
+          contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'scrollableAxes' : undefined}
           overScrollMode={Platform.OS === 'android' ? 'never' : undefined}
+          /* ── Keyboard / input ── */
+          /* Allow JS-triggered focus() to open the keyboard on iOS       */
+          keyboardDisplayRequiresUserAction={false}
           /* ── Scroll ── */
           showsHorizontalScrollIndicator={false}
           /* ── Error / Loading UI ── */
