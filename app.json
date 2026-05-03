@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.dinimuhd7.lifegate",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "LifeGate needs microphone access for websites that use voice input.",
-        "NSCameraUsageDescription": "LifeGate needs camera access for websites that use the camera."
+        "NSCameraUsageDescription": "LifeGate needs camera access for websites that use the camera.",
+        "NSLocationWhenInUseUsageDescription": "LifeGate needs location access for websites that use your location."
       }
     },
     "android": {
@@ -30,7 +31,9 @@
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
-        "CAMERA"
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
