@@ -31,13 +31,20 @@ const CHROME_COMPAT_SCRIPT = `
 (function () {
   try {
     /* ── 1. Viewport ──────────────────────────────────────── */
+    /* On Android WebView, viewport-fit=cover makes env(safe-area-inset-bottom)
+       equal the system nav bar height, adding unwanted space above the page's
+       bottom nav. Chrome avoids this by managing insets itself. We do the same
+       by keeping viewport-fit=cover only on iOS. */
+    var _isAndroid = ${Platform.OS === 'android' ? 'true' : 'false'};
+
     var head = document.head || document.getElementsByTagName('head')[0];
     if (head) {
       var vp = document.querySelector('meta[name="viewport"]');
       if (!vp) {
         vp = document.createElement('meta');
         vp.setAttribute('name', 'viewport');
-        vp.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');
+        var _fit = _isAndroid ? '' : ', viewport-fit=cover';
+        vp.setAttribute('content', 'width=device-width, initial-scale=1' + _fit);
         head.appendChild(vp);
       } else {
         /* Fix desktop-only viewports that force a fixed pixel width so
@@ -49,8 +56,13 @@ const CHROME_COMPAT_SCRIPT = `
             .replace(/initial-scale\s*=\s*[\d.]+/i, 'initial-scale=1');
           if (!/width/i.test(vpContent)) vpContent = 'width=device-width, initial-scale=1, ' + vpContent;
           if (!/initial-scale/i.test(vpContent)) vpContent += ', initial-scale=1';
-          if (!/viewport-fit/i.test(vpContent)) vpContent += ', viewport-fit=cover';
+          if (!_isAndroid && !/viewport-fit/i.test(vpContent)) vpContent += ', viewport-fit=cover';
           vp.setAttribute('content', vpContent.replace(/^[,\s]+/, '').replace(/,\s*,/g, ','));
+        }
+        /* On Android: strip viewport-fit=cover so env(safe-area-inset-bottom)
+           returns 0, eliminating the phantom gap above the page's bottom nav. */
+        if (_isAndroid && /viewport-fit/i.test(vpContent)) {
+          vp.setAttribute('content', vpContent.replace(/,?\s*viewport-fit\s*=\s*\w+/gi, '').trim());
         }
       }
       /* Ensure color-scheme meta is present for Chrome dark-mode support */
@@ -59,6 +71,18 @@ const CHROME_COMPAT_SCRIPT = `
         cs.setAttribute('name', 'color-scheme');
         cs.setAttribute('content', 'light dark');
         head.appendChild(cs);
+      }
+      /* Belt-and-suspenders: zero out CSS custom properties that web frameworks
+         (Ionic, Capacitor, custom React apps) use to track safe-area-inset-bottom.
+         This covers var(--sab) / var(--safe-area-inset-bottom) patterns. */
+      if (_isAndroid) {
+        var _sabStyle = document.createElement('style');
+        _sabStyle.textContent = ':root{--safe-area-inset-bottom:0px!important;--sab:0px!important;--inset-bottom:0px!important;--bottom-inset:0px!important;}';
+        head.appendChild(_sabStyle);
+        try {
+          document.documentElement.style.setProperty('--safe-area-inset-bottom', '0px');
+          document.documentElement.style.setProperty('--sab', '0px');
+        } catch (_) {}
       }
     }
 
