@@ -50,7 +50,9 @@
         {
           "icon": "./icons/icon-192.png",
           "color": "#0AADA2",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "androidMode": "default",
+          "androidCollapsedTitle": "LifeGate"
         }
       ]
     ],
