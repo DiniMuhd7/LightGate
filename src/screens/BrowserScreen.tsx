@@ -8,6 +8,7 @@ import {
   Linking,
   BackHandler,
   TouchableOpacity,
+  PermissionsAndroid,
 } from 'react-native';
 import WebView, { WebViewNavigation } from 'react-native-webview';
 import { Theme } from '../theme';
@@ -383,6 +384,18 @@ export function BrowserScreen({
       webViewRef.current?.clearCache?.(true);
     }
   }, [clearCacheSignal]);
+
+  // Pre-request OS-level camera & microphone permissions on Android.
+  // The manifest declaration alone is not enough — dangerous permissions
+  // must be explicitly granted at runtime before getUserMedia can deliver
+  // a live stream. Without this the camera preview is always black.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    ]).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
