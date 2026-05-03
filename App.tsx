@@ -37,14 +37,16 @@ export default function App() {
   const [tabProgress, setTabProgress] = useState<Record<string, number>>({});
   const [clearCacheSignal, setClearCacheSignal] = useState(0);
 
-  // On Android, place the nav bar in relative (non-overlay) mode so
-  // env(safe-area-inset-bottom) returns 0 — eliminating the phantom
-  // blank space that appears above web page bottom navigation bars.
+  // On Android, style the system nav bar to match the app theme.
   useEffect(() => {
     if (Platform.OS === 'android') {
       NavigationBar.setPositionAsync('relative').catch(() => {});
+      NavigationBar.setBackgroundColorAsync(theme.background).catch(() => {});
+      NavigationBar.setButtonStyleAsync(
+        resolvedScheme === 'dark' ? 'light' : 'dark'
+      ).catch(() => {});
     }
-  }, []);
+  }, [theme.background, resolvedScheme]);
 
   // Load persisted data on mount
   useEffect(() => {
