@@ -37,16 +37,17 @@ export default function App() {
   const [tabProgress, setTabProgress] = useState<Record<string, number>>({});
   const [clearCacheSignal, setClearCacheSignal] = useState(0);
 
-  // On Android, style the system nav bar to match the app theme.
+  // On Android: colour the system nav bar to match the app primary colour
+  // and place it in relative mode (content stops at the bar, not behind it).
   useEffect(() => {
     if (Platform.OS === 'android') {
       NavigationBar.setPositionAsync('relative').catch(() => {});
-      NavigationBar.setBackgroundColorAsync(theme.background).catch(() => {});
-      NavigationBar.setButtonStyleAsync(
-        resolvedScheme === 'dark' ? 'light' : 'dark'
-      ).catch(() => {});
+      NavigationBar.setBackgroundColorAsync(theme.primary).catch(() => {});
+      // Use light button icons on darker primaries, dark icons on lighter ones
+      const isDarkBg = resolvedScheme === 'dark';
+      NavigationBar.setButtonStyleAsync(isDarkBg ? 'light' : 'dark').catch(() => {});
     }
-  }, [theme.background, resolvedScheme]);
+  }, [theme.primary, resolvedScheme]);
 
   // Load persisted data on mount
   useEffect(() => {
