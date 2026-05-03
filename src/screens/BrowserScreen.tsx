@@ -411,7 +411,13 @@ export function BrowserScreen({
   const handleLoadEnd = useCallback(
     (event: { nativeEvent: { title?: string; url: string } }) => {
       const { nativeEvent } = event;
-      onAddHistory(nativeEvent.title || nativeEvent.url, nativeEvent.url);
+      // Only record history for successful loads (no active error)
+      setErrorKind(prev => {
+        if (prev === null) {
+          onAddHistory(nativeEvent.title || nativeEvent.url, nativeEvent.url);
+        }
+        return prev;
+      });
       onLoadProgress(0);
     },
     [onAddHistory, onLoadProgress],
@@ -506,6 +512,8 @@ export function BrowserScreen({
               <ActivityIndicator size="large" color={theme.primary} />
             </View>
           )}
+          /* Suppress native WebView error UI — our overlay handles it */
+          renderError={() => <View />}
           /* ── Navigation ── */
           onNavigationStateChange={handleNavigationStateChange}
           onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
