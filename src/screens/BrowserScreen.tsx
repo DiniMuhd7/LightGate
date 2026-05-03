@@ -142,24 +142,34 @@ const CHROME_COMPAT_SCRIPT = `
     function _postThemeColor() {
       try {
         var _tc = '';
-        /* 1) theme-color meta tag */
-        var _tcMeta = document.querySelector('meta[name="theme-color"]');
-        if (_tcMeta) _tc = (_tcMeta.getAttribute('content') || '').trim();
-
-        /* 2) CSS custom properties — try many common names, skip white */
-        if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc) || /^rgb\(\s*25[0-5]/i.test(_tc)) {
-          var _cs = window.getComputedStyle(document.documentElement);
-          var _candidates = [
-            '--primary-color', '--color-primary', '--brand-color',
-            '--teal', '--secondary', '--accent',
-            '--primary', '--theme-color',
-            '--color-secondary', '--color-brand', '--color-accent',
-          ];
-          for (var _i = 0; _i < _candidates.length; _i++) {
-            var _v = (_cs.getPropertyValue(_candidates[_i]) || '').trim();
-            /* reject empty, white, and near-white values */
-            if (_v && !/^#?f{3,6}$/i.test(_v) && !/^white$/i.test(_v) && !/^rgb\(\s*25[0-5]/i.test(_v)) {
-              _tc = _v;
+        /* 1) CSS secondary/accent vars — checked before theme-color meta
+           because many apps set theme-color to their primary (often white). */
+        var _cs = window.getComputedStyle(document.documentElement);
+        var _secondaryCandidates = [
+          '--secondary', '--color-secondary', '--secondary-color',
+          '--accent',    '--color-accent',    '--accent-color',
+          '--brand-secondary', '--teal', '--green',
+        ];
+        for (var _i = 0; _i < _secondaryCandidates.length; _i++) {
+          var _v = (_cs.getPropertyValue(_secondaryCandidates[_i]) || '').trim();
+          if (_v && !/^#?f{3,}$/i.test(_v) && !/^white$/i.test(_v) && !/^rgb\(\s*2[3-5][0-9]/i.test(_v)) {
+            _tc = _v;
+            break;
+          }
+        }
+        /* 2) theme-color meta (fallback) */
+        if (!_tc) {
+          var _tcMeta = document.querySelector('meta[name="theme-color"]');
+          if (_tcMeta) _tc = (_tcMeta.getAttribute('content') || '').trim();
+          if (_tc && (/^#?f{3,}$/i.test(_tc) || /^white$/i.test(_tc))) _tc = '';
+        }
+        /* 3) primary color vars (last resort) */
+        if (!_tc) {
+          var _primaryCandidates = ['--primary', '--primary-color', '--color-primary', '--brand-color'];
+          for (var _j = 0; _j < _primaryCandidates.length; _j++) {
+            var _pv = (_cs.getPropertyValue(_primaryCandidates[_j]) || '').trim();
+            if (_pv && !/^#?f{3,}$/i.test(_pv) && !/^white$/i.test(_pv)) {
+              _tc = _pv;
               break;
             }
           }
@@ -754,17 +764,11 @@ export function BrowserScreen({
           webViewRef.current?.injectJavaScript(`
             (function(){
               try {
-                var _tc = '';
-                var _m = document.querySelector('meta[name="theme-color"]');
-                if (_m) _tc = (_m.getAttribute('content')||'').trim();
-                if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc)) {
-                  var _cs = window.getComputedStyle(document.documentElement);
-                  var _names = ['--primary-color','--color-primary','--brand-color','--teal','--secondary','--accent','--primary','--color-secondary','--color-accent'];
-                  for(var i=0;i<_names.length;i++){
-                    var _v=(_cs.getPropertyValue(_names[i])||'').trim();
-                    if(_v&&!/^#?f{3,6}$/i.test(_v)&&!/^white$/i.test(_v)){_tc=_v;break;}
-                  }
-                }
+                var _tc='';
+                var _cs=window.getComputedStyle(document.documentElement);
+                var _sec=['--secondary','--color-secondary','--secondary-color','--accent','--color-accent','--accent-color','--brand-secondary','--teal','--green'];
+                for(var i=0;i<_sec.length;i++){var _v=(_cs.getPropertyValue(_sec[i])||'').trim();if(_v&&!/^#?f{3,}$/i.test(_v)&&!/^white$/i.test(_v)){_tc=_v;break;}}
+                if(!_tc){var _pri=['--primary','--primary-color','--color-primary','--brand-color'];for(var j=0;j<_pri.length;j++){var _p=(_cs.getPropertyValue(_pri[j])||'').trim();if(_p&&!/^#?f{3,}$/i.test(_p)&&!/^white$/i.test(_p)){_tc=_p;break;}}}
                 if(_tc) window.ReactNativeWebView.postMessage(JSON.stringify({type:'LG_THEME_COLOR',color:_tc}));
               } catch(_){}
             })(); true;
@@ -878,7 +882,7 @@ export function BrowserScreen({
           behind the transparent Android system nav bar. Works in both Expo Go
           and APK without needing NavigationBar API (blocked in edge-to-edge). */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || '#22C55E' }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor ?? '#22C55E' }]} />
       )}
     </View>
   );
