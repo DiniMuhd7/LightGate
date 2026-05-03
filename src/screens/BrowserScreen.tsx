@@ -174,13 +174,8 @@ const CHROME_COMPAT_SCRIPT = `
     }
 
     /* Fire now (initial load) and after every SPA navigation */
-    setTimeout(_postThemeColor, 200);
-    var _origNotify = (function(){
-      var _p = window.history.pushState;
-      var _r = window.history.replaceState;
-      window.history.pushState    = function() { _p.apply(window.history, arguments); setTimeout(_postThemeColor, 200); };
-      window.history.replaceState = function() { _r.apply(window.history, arguments); setTimeout(_postThemeColor, 200); };
-    });
+    /* NOTE: theme-colour extraction moved to SAB_FIX_SCRIPT which runs
+       post-load when CSS custom properties are actually available. */
 
     /* ── 4. Silence ResizeObserver loop errors (common in SPAs) ── */
     var _origError = window.onerror;
@@ -295,6 +290,40 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
   }
 
   _patch();
+
+  /* Extract the page's brand colour (post-load so CSS vars are resolved)
+     and send it to the native nav bar strip. Skips white/near-white values. */
+  function _postThemeColor() {
+    try {
+      var _tc = '';
+      var _tcMeta = document.querySelector('meta[name="theme-color"]');
+      if (_tcMeta) _tc = (_tcMeta.getAttribute('content') || '').trim();
+
+      if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc) || /^rgb\(\s*25[0-4]/i.test(_tc)) {
+        var _cs = window.getComputedStyle(document.documentElement);
+        var _candidates = [
+          '--primary-color', '--color-primary', '--brand-color',
+          '--teal', '--secondary', '--accent',
+          '--primary', '--theme-color',
+          '--color-secondary', '--color-brand', '--color-accent',
+        ];
+        for (var _i = 0; _i < _candidates.length; _i++) {
+          var _v = (_cs.getPropertyValue(_candidates[_i]) || '').trim();
+          if (_v && !/^#?f{3,6}$/i.test(_v) && !/^white$/i.test(_v) && !/^rgb\(\s*25[0-4]/i.test(_v)) {
+            _tc = _v;
+            break;
+          }
+        }
+      }
+
+      if (_tc && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({ type: 'LG_THEME_COLOR', color: _tc })
+        );
+      }
+    } catch (_) {}
+  }
+  _postThemeColor();
 
   /* Watch for dynamically injected <style> tags (code-split chunks, etc.) */
   if (typeof MutationObserver !== 'undefined') {
@@ -721,6 +750,25 @@ export function BrowserScreen({
             url: msg.url || tab.url,
             title: msg.title || tab.title,
           });
+          // Re-extract theme color on SPA navigation (CSS is already loaded)
+          webViewRef.current?.injectJavaScript(`
+            (function(){
+              try {
+                var _tc = '';
+                var _m = document.querySelector('meta[name="theme-color"]');
+                if (_m) _tc = (_m.getAttribute('content')||'').trim();
+                if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc)) {
+                  var _cs = window.getComputedStyle(document.documentElement);
+                  var _names = ['--primary-color','--color-primary','--brand-color','--teal','--secondary','--accent','--primary','--color-secondary','--color-accent'];
+                  for(var i=0;i<_names.length;i++){
+                    var _v=(_cs.getPropertyValue(_names[i])||'').trim();
+                    if(_v&&!/^#?f{3,6}$/i.test(_v)&&!/^white$/i.test(_v)){_tc=_v;break;}
+                  }
+                }
+                if(_tc) window.ReactNativeWebView.postMessage(JSON.stringify({type:'LG_THEME_COLOR',color:_tc}));
+              } catch(_){}
+            })(); true;
+          `);
         } else if (msg.type === 'LG_NOTIFICATION') {
           onShowNotification(msg.title || 'LifeGate', msg.body || '');
         } else if (msg.type === 'LG_THEME_COLOR' && msg.color) {
@@ -830,7 +878,7 @@ export function BrowserScreen({
           behind the transparent Android system nav bar. Works in both Expo Go
           and APK without needing NavigationBar API (blocked in edge-to-edge). */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || theme.primary }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || '#22C55E' }]} />
       )}
     </View>
   );
