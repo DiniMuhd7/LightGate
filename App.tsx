@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, useColorScheme, StatusBar, Platform, SafeAreaView } from 'react-native';
+import { View, StyleSheet, useColorScheme, StatusBar, Platform } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 
 import { getTheme } from './src/theme';
@@ -96,6 +97,7 @@ export default function App() {
   const statusBarStyle = resolvedScheme === 'dark' ? 'light' : 'dark';
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView
       style={[styles.root, { backgroundColor: theme.background }]}
     >
@@ -157,6 +159,7 @@ export default function App() {
         onClearData={() => { clearAllData(); setClearCacheSignal(s => s + 1); }}
       />
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
