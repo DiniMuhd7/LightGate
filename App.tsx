@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, useColorScheme, StatusBar, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
-import * as NavigationBar from 'expo-navigation-bar';
 
 import { getTheme } from './src/theme';
 import { sanitizeUrl } from './src/utils/url';
@@ -36,18 +35,6 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [tabProgress, setTabProgress] = useState<Record<string, number>>({});
   const [clearCacheSignal, setClearCacheSignal] = useState(0);
-
-  // On Android: colour the system nav bar to match the app primary colour
-  // and place it in relative mode (content stops at the bar, not behind it).
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      NavigationBar.setPositionAsync('relative').catch(() => {});
-      NavigationBar.setBackgroundColorAsync(theme.primary).catch(() => {});
-      // Use light button icons on darker primaries, dark icons on lighter ones
-      const isDarkBg = resolvedScheme === 'dark';
-      NavigationBar.setButtonStyleAsync(isDarkBg ? 'light' : 'dark').catch(() => {});
-    }
-  }, [theme.primary, resolvedScheme]);
 
   // Load persisted data on mount
   useEffect(() => {

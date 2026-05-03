@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import WebView, { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as NavigationBar from 'expo-navigation-bar';
 import { Theme } from '../theme';
 import { Tab } from '../hooks/useTabs';
 
@@ -658,13 +657,8 @@ export function BrowserScreen({
         return prev;
       });
       onLoadProgress(0);
-      // Re-apply nav bar colour on every page load — subpage navigations can
-      // reset it if the page sets its own theme-color meta tag.
-      if (Platform.OS === 'android') {
-        NavigationBar.setBackgroundColorAsync(theme.primary).catch(() => {});
-      }
     },
-    [onAddHistory, onLoadProgress, theme.primary],
+    [onAddHistory, onLoadProgress],
   );
 
   // Receive SPA navigation events posted by CHROME_COMPAT_SCRIPT.
@@ -703,10 +697,10 @@ export function BrowserScreen({
   }, []);
 
   const insets = useSafeAreaInsets();
-  const bottomPad = Platform.OS === 'android' ? insets.bottom : 0;
+  const navBarHeight = Platform.OS === 'android' ? insets.bottom : 0;
 
   return (
-    <View style={[styles.container, bottomPad > 0 && { paddingBottom: bottomPad }]}>
+    <View style={styles.container}>
       {/* WebView or new-tab placeholder */}
       {isNewTab ? (
         <View style={styles.newTabPlaceholder}>
@@ -780,6 +774,12 @@ export function BrowserScreen({
       {errorKind !== null && (
         <ErrorPage kind={errorKind} theme={theme} onRetry={handleRetry} />
       )}
+      {/* Edge-to-edge nav bar colour strip — renders a primary-coloured bar
+          behind the transparent Android system nav bar. Works in both Expo Go
+          and APK without needing NavigationBar API (blocked in edge-to-edge). */}
+      {navBarHeight > 0 && (
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: theme.primary }]} />
+      )}
     </View>
   );
 }
@@ -792,6 +792,9 @@ function makeStyles(theme: Theme) {
     },
     webview: {
       flex: 1,
+    },
+    navBarStrip: {
+      width: '100%',
     },
     loadingOverlay: {
       ...StyleSheet.absoluteFillObject,
