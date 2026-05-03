@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Theme } from '../theme';
 import { searchEngineUrl } from '../utils/url';
 import { Bookmark } from '../hooks/useBookmarks';

@@ -6,10 +6,10 @@ import {
   Switch,
   StyleSheet,
   Modal,
-  SafeAreaView,
   ScrollView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Settings } from '../hooks/useSettings';
 import { Theme } from '../theme';
 

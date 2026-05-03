@@ -6,8 +6,8 @@ import {
   FlatList,
   StyleSheet,
   Modal,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { HistoryEntry } from '../hooks/useHistory';
 import { Theme } from '../theme';
 
