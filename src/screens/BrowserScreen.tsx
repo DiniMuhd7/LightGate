@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Platform,
   Linking,
   BackHandler,
+  TouchableOpacity,
 } from 'react-native';
 import WebView, { WebViewNavigation } from 'react-native-webview';
 import { Theme } from '../theme';
@@ -141,6 +142,167 @@ const CHROME_COMPAT_SCRIPT = `
 true;
 `;
 
+type ErrorKind = 'offline' | 'notfound' | 'server' | 'generic';
+
+function ErrorPage({ kind, theme, onRetry }: { kind: ErrorKind; theme: Theme; onRetry: () => void }) {
+  const cfg = {
+    offline: {
+      badge: '~',
+      title: 'No Internet',
+      body: 'You\'re offline. Check your Wi-Fi or\nmobile data and try again.',
+      action: 'Try Again',
+    },
+    notfound: {
+      badge: '404',
+      title: 'Page Not Found',
+      body: 'The page you requested could not\nbe found.',
+      action: 'Go Back',
+    },
+    server: {
+      badge: '!',
+      title: 'Server Error',
+      body: 'Something went wrong on the server.\nPlease try again shortly.',
+      action: 'Try Again',
+    },
+    generic: {
+      badge: '!',
+      title: 'Something Went Wrong',
+      body: 'This page couldn\'t be loaded.\nPlease try again.',
+      action: 'Try Again',
+    },
+  }[kind];
+
+  return (
+    <View style={[epStyles.root, { backgroundColor: theme.background }]}>
+      {/* Decorative top bar matching LifeGate blue */}
+      <View style={[epStyles.topAccent, { backgroundColor: theme.primary }]} />
+
+      <View style={epStyles.card}>
+        {/* Badge circle */}
+        <View style={[epStyles.badgeOuter, { borderColor: theme.primary + '30' }]}>
+          <View style={[epStyles.badgeInner, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '40' }]}>
+            <Text style={[epStyles.badgeText, { color: theme.primary }]}>{cfg.badge}</Text>
+          </View>
+        </View>
+
+        {/* Title */}
+        <Text style={[epStyles.title, { color: theme.text }]}>{cfg.title}</Text>
+
+        {/* Body */}
+        <Text style={[epStyles.body, { color: theme.textMuted }]}>{cfg.body}</Text>
+
+        {/* Divider */}
+        <View style={[epStyles.divider, { backgroundColor: theme.border }]} />
+
+        {/* Action button */}
+        <TouchableOpacity
+          style={[epStyles.btn, { backgroundColor: theme.primary }]}
+          onPress={onRetry}
+          activeOpacity={0.82}
+          accessibilityRole="button"
+          accessibilityLabel={cfg.action}
+        >
+          <Text style={epStyles.btnText}>{cfg.action}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom watermark — brand only, no URL */}
+      <Text style={[epStyles.watermark, { color: theme.textMuted }]}>LifeGate</Text>
+    </View>
+  );
+}
+
+const epStyles = StyleSheet.create({
+  root: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  topAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    borderRadius: 0,
+  },
+  card: {
+    width: '84%',
+    maxWidth: 360,
+    alignItems: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+  },
+  badgeOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  badgeInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    includeFontPadding: false,
+  },
+  title: {
+    marginTop: 20,
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  body: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  divider: {
+    width: 40,
+    height: 1.5,
+    borderRadius: 2,
+    marginVertical: 24,
+  },
+  btn: {
+    paddingHorizontal: 36,
+    paddingVertical: 13,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#1a73e8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  btnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+  watermark: {
+    position: 'absolute',
+    bottom: 24,
+    fontSize: 12,
+    letterSpacing: 1.5,
+    opacity: 0.5,
+  },
+});
+
 interface Props {
   tab: Tab;
   theme: Theme;
@@ -176,6 +338,45 @@ export function BrowserScreen({
 }: Props) {
   const webViewRef = useRef<WebView>(null);
   const styles = makeStyles(theme);
+  const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
+
+  const handleRetry = useCallback(() => {
+    setErrorKind(null);
+    webViewRef.current?.reload();
+  }, []);
+
+  const handleError = useCallback(
+    (event: { nativeEvent: { code: number; description: string } }) => {
+      const { code, description = '' } = event.nativeEvent;
+      const d = description.toLowerCase();
+      const isOffline =
+        code === -1009 || // iOS NSURLErrorNotConnectedToInternet
+        code === -1004 || // iOS NSURLErrorCannotConnectToHost
+        code === -2 ||    // Android ERROR_HOST_LOOKUP
+        code === -6 ||    // Android ERROR_CONNECT
+        d.includes('net::err_internet_disconnected') ||
+        d.includes('net::err_name_not_resolved') ||
+        d.includes('net::err_connection_refused') ||
+        d.includes('not connected') ||
+        d.includes('network connection was lost');
+      setErrorKind(isOffline ? 'offline' : 'generic');
+    },
+    [],
+  );
+
+  const handleHttpError = useCallback(
+    (event: { nativeEvent: { statusCode: number } }) => {
+      const { statusCode } = event.nativeEvent;
+      if (statusCode === 404) setErrorKind('notfound');
+      else if (statusCode >= 500) setErrorKind('server');
+    },
+    [],
+  );
+
+  const handleLoadStart = useCallback(() => {
+    setErrorKind(null);
+    onLoadProgress(0.05);
+  }, [onLoadProgress]);
 
   useEffect(() => {
     if (clearCacheSignal > 0) {
@@ -292,37 +493,34 @@ export function BrowserScreen({
           mixedContentMode="compatibility"
           decelerationRate={Platform.OS === 'ios' ? 'normal' : undefined}
           automaticallyAdjustContentInsets={false}
-          /* scrollableAxes lets the system adjust for the keyboard on iOS
-             without also adjusting for the status-bar safe area          */
           contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'scrollableAxes' : undefined}
           overScrollMode={Platform.OS === 'android' ? 'never' : undefined}
           /* ── Keyboard / input ── */
-          /* Allow JS-triggered focus() to open the keyboard on iOS       */
           keyboardDisplayRequiresUserAction={false}
           /* ── Scroll ── */
           showsHorizontalScrollIndicator={false}
-          /* ── Error / Loading UI ── */
+          /* ── Error / Loading ── */
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={theme.primary} />
             </View>
           )}
-          renderError={(domain, code, desc) => (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorTitle}>Page failed to load</Text>
-              <Text style={styles.errorDetail}>{desc || `Error ${code}`}</Text>
-            </View>
-          )}
           /* ── Navigation ── */
           onNavigationStateChange={handleNavigationStateChange}
           onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
           onLoadEnd={handleLoadEnd}
+          onLoadStart={handleLoadStart}
+          onError={handleError}
+          onHttpError={handleHttpError}
           onLoadProgress={({ nativeEvent }) => onLoadProgress(nativeEvent.progress)}
-          onLoadStart={() => onLoadProgress(0.05)}
           allowsBackForwardNavigationGestures={Platform.OS === 'ios'}
           accessibilityLabel="Web page viewer"
         />
+      )}
+      {/* Error overlay — shown over the WebView, never exposes the URL */}
+      {errorKind !== null && (
+        <ErrorPage kind={errorKind} theme={theme} onRetry={handleRetry} />
       )}
     </View>
   );
@@ -342,24 +540,6 @@ function makeStyles(theme: Theme) {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.background,
-    },
-    errorBox: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-      backgroundColor: theme.background,
-    },
-    errorTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 8,
-    },
-    errorDetail: {
-      fontSize: 13,
-      color: theme.textMuted,
-      textAlign: 'center',
     },
     newTabPlaceholder: {
       flex: 1,
