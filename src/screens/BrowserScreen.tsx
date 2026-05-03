@@ -174,8 +174,13 @@ const CHROME_COMPAT_SCRIPT = `
     }
 
     /* Fire now (initial load) and after every SPA navigation */
-    /* NOTE: theme-colour extraction moved to SAB_FIX_SCRIPT which runs
-       post-load when CSS custom properties are actually available. */
+    setTimeout(_postThemeColor, 200);
+    var _origNotify = (function(){
+      var _p = window.history.pushState;
+      var _r = window.history.replaceState;
+      window.history.pushState    = function() { _p.apply(window.history, arguments); setTimeout(_postThemeColor, 200); };
+      window.history.replaceState = function() { _r.apply(window.history, arguments); setTimeout(_postThemeColor, 200); };
+    });
 
     /* ── 4. Silence ResizeObserver loop errors (common in SPAs) ── */
     var _origError = window.onerror;
@@ -257,6 +262,9 @@ true;
 // nav bars on Android WebView where edge-to-edge is forced by the OS.
 const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
 (function () {
+  if (window.__lgSabFixed) return;
+  window.__lgSabFixed = true;
+
   function _zeroSab(text) {
     return text.replace(/env\\(\\s*safe-area-inset-bottom[^)]*\\)/gi, '0px');
   }
@@ -276,7 +284,7 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
       el.setAttribute('style', _zeroSab(el.getAttribute('style') || ''));
     });
 
-    /* 3. Zero out all common CSS custom properties */
+    /* 3. Re-zero CSS custom properties in case JS set them after load */
     try {
       var root = document.documentElement;
       root.style.setProperty('--safe-area-inset-bottom', '0px');
@@ -284,65 +292,9 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
       root.style.setProperty('--inset-bottom',           '0px');
       root.style.setProperty('--bottom-inset',           '0px');
     } catch (_) {}
-
-    /* 4. Find likely bottom-nav elements and force their padding/margin to 0.
-          Targets fixed/sticky elements near the bottom with non-zero padding. */
-    try {
-      var all = document.querySelectorAll('*');
-      for (var i = 0; i < all.length; i++) {
-        var el = all[i];
-        var cs = window.getComputedStyle(el);
-        var pos = cs.position;
-        if (pos === 'fixed' || pos === 'sticky') {
-          var bottom = parseFloat(cs.bottom) || 0;
-          var pb = parseFloat(cs.paddingBottom) || 0;
-          /* element anchored near screen bottom with non-trivial padding */
-          if (bottom <= 10 && pb > 4) {
-            el.style.setProperty('padding-bottom', '0px', 'important');
-          }
-        }
-      }
-    } catch (_) {}
   }
 
   _patch();
-  /* Re-run after short delay to catch JS-driven layout updates */
-  setTimeout(_patch, 500);
-  setTimeout(_patch, 1500);
-
-  /* Extract the page's brand colour (post-load so CSS vars are resolved)
-     and send it to the native nav bar strip. Skips white/near-white values. */
-  function _postThemeColor() {
-    try {
-      var _tc = '';
-      var _tcMeta = document.querySelector('meta[name="theme-color"]');
-      if (_tcMeta) _tc = (_tcMeta.getAttribute('content') || '').trim();
-
-      if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc) || /^rgb\(\s*25[0-4]/i.test(_tc)) {
-        var _cs = window.getComputedStyle(document.documentElement);
-        var _candidates = [
-          '--primary-color', '--color-primary', '--brand-color',
-          '--teal', '--secondary', '--accent',
-          '--primary', '--theme-color',
-          '--color-secondary', '--color-brand', '--color-accent',
-        ];
-        for (var _i = 0; _i < _candidates.length; _i++) {
-          var _v = (_cs.getPropertyValue(_candidates[_i]) || '').trim();
-          if (_v && !/^#?f{3,6}$/i.test(_v) && !/^white$/i.test(_v) && !/^rgb\(\s*25[0-4]/i.test(_v)) {
-            _tc = _v;
-            break;
-          }
-        }
-      }
-
-      if (_tc && window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(
-          JSON.stringify({ type: 'LG_THEME_COLOR', color: _tc })
-        );
-      }
-    } catch (_) {}
-  }
-  _postThemeColor();
 
   /* Watch for dynamically injected <style> tags (code-split chunks, etc.) */
   if (typeof MutationObserver !== 'undefined') {
@@ -769,38 +721,6 @@ export function BrowserScreen({
             url: msg.url || tab.url,
             title: msg.title || tab.title,
           });
-          // Re-extract theme color on SPA navigation (CSS is already loaded)
-          webViewRef.current?.injectJavaScript(`
-            (function(){
-              try {
-                var _tc = '';
-                var _m = document.querySelector('meta[name="theme-color"]');
-                if (_m) _tc = (_m.getAttribute('content')||'').trim();
-                if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc)) {
-                  var _cs = window.getComputedStyle(document.documentElement);
-                  var _names = ['--primary-color','--color-primary','--brand-color','--teal','--secondary','--accent','--primary','--color-secondary','--color-accent'];
-                  for(var i=0;i<_names.length;i++){
-                    var _v=(_cs.getPropertyValue(_names[i])||'').trim();
-                    if(_v&&!/^#?f{3,6}$/i.test(_v)&&!/^white$/i.test(_v)){_tc=_v;break;}
-                  }
-                }
-                if(_tc) window.ReactNativeWebView.postMessage(JSON.stringify({type:'LG_THEME_COLOR',color:_tc}));
-              } catch(_){}
-
-              /* Also re-zero safe-area padding on bottom-fixed elements */
-              try {
-                document.documentElement.style.setProperty('--safe-area-inset-bottom','0px');
-                document.documentElement.style.setProperty('--sab','0px');
-                var all = document.querySelectorAll('*');
-                for(var i=0;i<all.length;i++){
-                  var el=all[i]; var cs=window.getComputedStyle(el);
-                  if((cs.position==='fixed'||cs.position==='sticky') && parseFloat(cs.bottom)<=10 && parseFloat(cs.paddingBottom)>4){
-                    el.style.setProperty('padding-bottom','0px','important');
-                  }
-                }
-              } catch(_){}
-            })(); true;
-          `);
         } else if (msg.type === 'LG_NOTIFICATION') {
           onShowNotification(msg.title || 'LifeGate', msg.body || '');
         } else if (msg.type === 'LG_THEME_COLOR' && msg.color) {
@@ -910,7 +830,7 @@ export function BrowserScreen({
           behind the transparent Android system nav bar. Works in both Expo Go
           and APK without needing NavigationBar API (blocked in edge-to-edge). */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || '#22C55E' }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || theme.primary }]} />
       )}
     </View>
   );
