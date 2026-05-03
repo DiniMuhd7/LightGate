@@ -135,6 +135,53 @@ const CHROME_COMPAT_SCRIPT = `
       window.addEventListener('hashchange', _notify);
     }
 
+    /* ── 3b. Theme-colour bridge ──────────────────────────────────────
+       Reads the page's brand colour and posts it so the native nav bar
+       strip can match it. Fires on initial load and every SPA navigation.
+       Skips white / near-white values that are backgrounds, not brands.   */
+    function _postThemeColor() {
+      try {
+        var _tc = '';
+        /* 1) theme-color meta tag */
+        var _tcMeta = document.querySelector('meta[name="theme-color"]');
+        if (_tcMeta) _tc = (_tcMeta.getAttribute('content') || '').trim();
+
+        /* 2) CSS custom properties — try many common names, skip white */
+        if (!_tc || /^#?f{3,6}$/i.test(_tc) || /^white$/i.test(_tc) || /^rgb\(\s*25[0-5]/i.test(_tc)) {
+          var _cs = window.getComputedStyle(document.documentElement);
+          var _candidates = [
+            '--primary-color', '--color-primary', '--brand-color',
+            '--teal', '--secondary', '--accent',
+            '--primary', '--theme-color',
+            '--color-secondary', '--color-brand', '--color-accent',
+          ];
+          for (var _i = 0; _i < _candidates.length; _i++) {
+            var _v = (_cs.getPropertyValue(_candidates[_i]) || '').trim();
+            /* reject empty, white, and near-white values */
+            if (_v && !/^#?f{3,6}$/i.test(_v) && !/^white$/i.test(_v) && !/^rgb\(\s*25[0-5]/i.test(_v)) {
+              _tc = _v;
+              break;
+            }
+          }
+        }
+
+        if (_tc && window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify({ type: 'LG_THEME_COLOR', color: _tc })
+          );
+        }
+      } catch (_) {}
+    }
+
+    /* Fire now (initial load) and after every SPA navigation */
+    setTimeout(_postThemeColor, 200);
+    var _origNotify = (function(){
+      var _p = window.history.pushState;
+      var _r = window.history.replaceState;
+      window.history.pushState    = function() { _p.apply(window.history, arguments); setTimeout(_postThemeColor, 200); };
+      window.history.replaceState = function() { _r.apply(window.history, arguments); setTimeout(_postThemeColor, 200); };
+    });
+
     /* ── 4. Silence ResizeObserver loop errors (common in SPAs) ── */
     var _origError = window.onerror;
     window.onerror = function (msg) {
@@ -248,26 +295,6 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
   }
 
   _patch();
-
-  /* Read the page's primary/brand colour and send it to the native layer
-     so the nav bar strip below can match the webpage's own colour scheme.
-     Priority: 1) theme-color meta  2) --primary CSS var  3) nothing sent */
-  try {
-    var _tc = '';
-    var _tcMeta = document.querySelector('meta[name="theme-color"]');
-    if (_tcMeta) {
-      _tc = (_tcMeta.getAttribute('content') || '').trim();
-    }
-    if (!_tc) {
-      var _computed = window.getComputedStyle(document.documentElement);
-      _tc = (_computed.getPropertyValue('--primary') ||
-             _computed.getPropertyValue('--color-primary') ||
-             _computed.getPropertyValue('--brand-color') || '').trim();
-    }
-    if (_tc && window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LG_THEME_COLOR', color: _tc }));
-    }
-  } catch (_) {}
 
   /* Watch for dynamically injected <style> tags (code-split chunks, etc.) */
   if (typeof MutationObserver !== 'undefined') {
@@ -622,6 +649,7 @@ export function BrowserScreen({
 
   const handleLoadStart = useCallback(() => {
     setErrorKind(null);
+    setPageColor(null);   // reset so old colour doesn't linger during nav
     onLoadProgress(0.05);
   }, [onLoadProgress]);
 
@@ -776,7 +804,8 @@ export function BrowserScreen({
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loadingOverlay}>
-              <HeartbeatLoader color={theme.primary} />
+              <HeartbeatLoader color="#0AADA2" />
+              <Text style={styles.loadingBrand}>LifeGate</Text>
             </View>
           )}
           /* Suppress native WebView error UI — our overlay handles it */
@@ -823,7 +852,15 @@ function makeStyles(theme: Theme) {
       ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.background,
+      backgroundColor: '#ffffff',
+    },
+    loadingBrand: {
+      marginTop: 20,
+      fontSize: 18,
+      fontWeight: '600' as const,
+      letterSpacing: 2,
+      color: '#0AADA2',
+      opacity: 0.85,
     },
     newTabPlaceholder: {
       flex: 1,
