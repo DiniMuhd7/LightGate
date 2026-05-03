@@ -144,23 +144,27 @@ const CHROME_COMPAT_SCRIPT = `
     };
 
     /* ── 5. Scroll focused inputs into view when keyboard opens ──────
-       Prevents the keyboard from covering the active input field,
-       matching the behaviour users expect from Chrome Mobile.          */
-    document.addEventListener('focusin', function (e) {
-      var el = e.target;
-      if (
-        el &&
-        (el.tagName === 'INPUT' ||
-          el.tagName === 'TEXTAREA' ||
-          el.isContentEditable)
-      ) {
-        setTimeout(function () {
-          try {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          } catch (_) {}
-        }, 350);
-      }
-    }, true);
+       iOS only: Android handles this automatically via
+       softwareKeyboardLayoutMode=resize in app.json. On Android,
+       calling scrollIntoView() right after focus causes a layout shift
+       that blurs the input, collapsing the keyboard (flicker bug).    */
+    if (!_isAndroid) {
+      document.addEventListener('focusin', function (e) {
+        var el = e.target;
+        if (
+          el &&
+          (el.tagName === 'INPUT' ||
+            el.tagName === 'TEXTAREA' ||
+            el.isContentEditable)
+        ) {
+          setTimeout(function () {
+            try {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (_) {}
+          }, 350);
+        }
+      }, true);
+    }
 
     /* ── 6. window.Notification bridge ───────────────────────────────
        WebView blocks the real Notification API. We shim it so sites
