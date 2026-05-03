@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   PermissionsAndroid,
 } from 'react-native';
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import WebView, { WebViewNavigation } from 'react-native-webview';
@@ -367,79 +366,6 @@ const CHROME_COMPAT_SCRIPT = `
         }
       } catch (_) {}
 
-      /* ── 7b. SpeechRecognition shim via postMessage bridge ── */
-      /* Android WebView has no SpeechRecognition. We shim the standard
-         interface so pages that feature-detect it don't silently fail.
-         The shim sends LG_SPEECH_START / LG_SPEECH_STOP messages to the
-         native side; if recognition results come back, they are dispatched
-         as SpeechRecognitionEvent-like CustomEvents on the instance.       */
-      if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
-        try {
-          function LGSpeechRecognition() {
-            this.lang = 'en-US';
-            this.continuous = false;
-            this.interimResults = false;
-            this.maxAlternatives = 1;
-            this.onstart = null;
-            this.onend = null;
-            this.onresult = null;
-            this.onerror = null;
-            this._id = Math.random().toString(36).slice(2);
-            /* Register this instance so incoming messages can route back */
-            window.__lgSpeechInstances = window.__lgSpeechInstances || {};
-            window.__lgSpeechInstances[this._id] = this;
-          }
-
-          LGSpeechRecognition.prototype.start = function () {
-            var self = this;
-            try {
-              if (self.onstart) self.onstart({});
-              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
-                JSON.stringify({ type: 'LG_SPEECH_START', id: self._id, lang: self.lang, continuous: self.continuous })
-              );
-            } catch (_) {}
-          };
-
-          LGSpeechRecognition.prototype.stop = function () {
-            try {
-              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
-                JSON.stringify({ type: 'LG_SPEECH_STOP', id: this._id })
-              );
-              if (this.onend) this.onend({});
-            } catch (_) {}
-          };
-
-          LGSpeechRecognition.prototype.abort = function () { this.stop(); };
-
-          /* Result dispatcher — called from handleMessage on the RN side */
-          window.__lgSpeechResult = function (id, transcript, isFinal) {
-            try {
-              var inst = (window.__lgSpeechInstances || {})[id];
-              if (!inst || !inst.onresult) return;
-              var result = { transcript: transcript, confidence: 0.9, isFinal: isFinal };
-              var resultList = [result];
-              resultList.isFinal = isFinal;
-              inst.onresult({ results: [resultList], resultIndex: 0 });
-              if (isFinal && !inst.continuous && inst.onend) { inst.onend({}); }
-            } catch (_) {}
-          };
-
-          window.__lgSpeechError = function (id, errorMsg) {
-            try {
-              var inst = (window.__lgSpeechInstances || {})[id];
-              if (inst && inst.onerror) inst.onerror({ error: errorMsg || 'not-allowed' });
-              if (inst && inst.onend) inst.onend({});
-            } catch (_) {}
-          };
-
-          try { window.SpeechRecognition = LGSpeechRecognition; } catch (_) {}
-          try { window.webkitSpeechRecognition = LGSpeechRecognition; } catch (_) {}
-          try {
-            Object.defineProperty(window, 'SpeechRecognition', { value: LGSpeechRecognition, writable: true, configurable: true });
-            Object.defineProperty(window, 'webkitSpeechRecognition', { value: LGSpeechRecognition, writable: true, configurable: true });
-          } catch (_) {}
-        } catch (_) {}
-      }
     }
 
   } catch (_) {}
@@ -821,7 +747,6 @@ export function BrowserScreen({
   const styles = makeStyles(theme);
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
   const [pageColor, setPageColor] = useState<string | null>(null);
-  const speechSessionRef = useRef<{ id: string; continuous: boolean } | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const [cameraRequest, setCameraRequest] = useState<{ id: string; audio: boolean } | null>(null);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
@@ -961,19 +886,6 @@ export function BrowserScreen({
           onShowNotification(msg.title || 'LifeGate', msg.body || '');
         } else if (msg.type === 'LG_THEME_COLOR' && msg.color) {
           setPageColor(msg.color);
-        } else if (msg.type === 'LG_SPEECH_START') {
-          speechSessionRef.current = { id: msg.id, continuous: !!msg.continuous };
-          try {
-            await Voice.start(msg.lang || 'en-US');
-          } catch (e) {
-            webViewRef.current?.injectJavaScript(
-              `try{window.__lgSpeechError&&window.__lgSpeechError(${JSON.stringify(msg.id)},'not-allowed');}catch(_){}true;`
-            );
-            speechSessionRef.current = null;
-          }
-        } else if (msg.type === 'LG_SPEECH_STOP') {
-          try { await Voice.stop(); } catch (_) {}
-          speechSessionRef.current = null;
         } else if (msg.type === 'LG_CAMERA_REQUEST') {
           const granted = await requestCameraPermission();
           if (!granted.granted) {
@@ -1003,52 +915,6 @@ export function BrowserScreen({
     // Hand off non-web schemes (mailto, tel, intent, etc.) to the OS.
     Linking.openURL(url).catch(() => undefined);
     return false;
-  }, []);
-
-  // Voice recognition listeners — wire @react-native-voice/voice results
-  // back into the WebView's SpeechRecognition shim.
-  useEffect(() => {
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      const sess = speechSessionRef.current;
-      if (!sess || !e.value?.length) return;
-      const transcript = e.value[0];
-      webViewRef.current?.injectJavaScript(
-        `try{window.__lgSpeechResult&&window.__lgSpeechResult(${JSON.stringify(sess.id)},${JSON.stringify(transcript)},true);}catch(_){}true;`
-      );
-      if (!sess.continuous) speechSessionRef.current = null;
-    };
-
-    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
-      const sess = speechSessionRef.current;
-      if (!sess || !e.value?.length) return;
-      webViewRef.current?.injectJavaScript(
-        `try{window.__lgSpeechResult&&window.__lgSpeechResult(${JSON.stringify(sess.id)},${JSON.stringify(e.value[0])},false);}catch(_){}true;`
-      );
-    };
-
-    Voice.onSpeechError = (e: SpeechErrorEvent) => {
-      const sess = speechSessionRef.current;
-      if (!sess) return;
-      const errCode = e.error?.code ?? 'error';
-      webViewRef.current?.injectJavaScript(
-        `try{window.__lgSpeechError&&window.__lgSpeechError(${JSON.stringify(sess.id)},${JSON.stringify(String(errCode))});}catch(_){}true;`
-      );
-      speechSessionRef.current = null;
-    };
-
-    Voice.onSpeechEnd = () => {
-      const sess = speechSessionRef.current;
-      if (!sess) return;
-      // Fire onend so the page can update its UI
-      webViewRef.current?.injectJavaScript(
-        `try{var _i=(window.__lgSpeechInstances||{})[${JSON.stringify(sess.id)}];if(_i&&_i.onend)_i.onend({});}catch(_){}true;`
-      );
-      if (!sess.continuous) speechSessionRef.current = null;
-    };
-
-    return () => {
-      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
-    };
   }, []);
 
   const handleCameraCapture = useCallback(async () => {

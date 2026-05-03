@@ -47,7 +47,6 @@
     },
     "plugins": [
       "expo-camera",
-      "@react-native-voice/voice",
       [
         "expo-notifications",
         {
