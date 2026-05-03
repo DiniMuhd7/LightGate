@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, useColorScheme, StatusBar, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 
 import { getTheme } from './src/theme';
 import { sanitizeUrl } from './src/utils/url';
@@ -35,6 +36,15 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [tabProgress, setTabProgress] = useState<Record<string, number>>({});
   const [clearCacheSignal, setClearCacheSignal] = useState(0);
+
+  // On Android, place the nav bar in relative (non-overlay) mode so
+  // env(safe-area-inset-bottom) returns 0 — eliminating the phantom
+  // blank space that appears above web page bottom navigation bars.
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setPositionAsync('relative').catch(() => {});
+    }
+  }, []);
 
   // Load persisted data on mount
   useEffect(() => {
