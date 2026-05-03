@@ -4,6 +4,7 @@ import {
   Text,
   Image,
   Animated,
+  AppState,
   StyleSheet,
   Platform,
   Linking,
@@ -700,6 +701,29 @@ export function BrowserScreen({
     });
     return () => handler.remove();
   }, [tab.canGoBack]);
+
+  // When user returns to the app from background, dispatch visibility/focus
+  // events so the SPA can re-connect WebSockets, restart pollers, etc.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        webViewRef.current?.injectJavaScript(`
+          (function() {
+            try {
+              // Tell the page it is visible again
+              Object.defineProperty(document, 'hidden',           { value: false,    configurable: true });
+              Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+              document.dispatchEvent(new Event('visibilitychange'));
+              window.dispatchEvent(new Event('focus'));
+              window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+            } catch(_) {}
+          })();
+          true;
+        `);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleNavigationStateChange = useCallback(
     (navState: WebViewNavigation) => {
