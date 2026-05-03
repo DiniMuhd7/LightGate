@@ -203,6 +203,66 @@ const CHROME_COMPAT_SCRIPT = `
 true;
 `;
 
+// Injected AFTER the page loads (injectedJavaScript prop).
+// By this point all <style> tags are in the DOM, so we can patch
+// env(safe-area-inset-bottom) directly inside those stylesheets.
+// This is the most reliable way to remove the blank space above bottom
+// nav bars on Android WebView where edge-to-edge is forced by the OS.
+const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
+(function () {
+  if (window.__lgSabFixed) return;
+  window.__lgSabFixed = true;
+
+  function _zeroSab(text) {
+    return text.replace(/env\\(\\s*safe-area-inset-bottom[^)]*\\)/gi, '0px');
+  }
+
+  function _patch() {
+    /* 1. Patch every <style> tag that mentions safe-area-inset-bottom */
+    document.querySelectorAll('style').forEach(function (s) {
+      if (s._lgSabDone) return;
+      if (/safe-area-inset-bottom/i.test(s.textContent || '')) {
+        s._lgSabDone = true;
+        s.textContent = _zeroSab(s.textContent);
+      }
+    });
+
+    /* 2. Patch inline style attributes on individual elements */
+    document.querySelectorAll('[style*="safe-area-inset-bottom"]').forEach(function (el) {
+      el.setAttribute('style', _zeroSab(el.getAttribute('style') || ''));
+    });
+
+    /* 3. Re-zero CSS custom properties in case JS set them after load */
+    try {
+      var root = document.documentElement;
+      root.style.setProperty('--safe-area-inset-bottom', '0px');
+      root.style.setProperty('--sab',                   '0px');
+      root.style.setProperty('--inset-bottom',           '0px');
+      root.style.setProperty('--bottom-inset',           '0px');
+    } catch (_) {}
+  }
+
+  _patch();
+
+  /* Watch for dynamically injected <style> tags (code-split chunks, etc.) */
+  if (typeof MutationObserver !== 'undefined') {
+    new MutationObserver(function (mutations) {
+      var needsPatch = false;
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (n) {
+          if (n.nodeType === 1 /* ELEMENT_NODE */ &&
+              (n.tagName === 'STYLE' || n.tagName === 'LINK')) {
+            needsPatch = true;
+          }
+        });
+      });
+      if (needsPatch) _patch();
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
+})();
+true;
+` : 'true;';
+
 // ── Heart-rate / ECG loading animation ───────────────────────────────────────
 function HeartbeatLoader({ color }: { color: string }) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -653,6 +713,7 @@ export function BrowserScreen({
           domStorageEnabled
           /* ── SPA / compat injection ── */
           injectedJavaScriptBeforeContentLoaded={CHROME_COMPAT_SCRIPT}
+          injectedJavaScript={SAB_FIX_SCRIPT}
           onMessage={handleMessage}
           /* ── Windowing ── */
           setSupportMultipleWindows={false}
