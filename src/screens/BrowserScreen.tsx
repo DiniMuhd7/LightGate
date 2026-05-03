@@ -249,6 +249,26 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
 
   _patch();
 
+  /* Read the page's primary/brand colour and send it to the native layer
+     so the nav bar strip below can match the webpage's own colour scheme.
+     Priority: 1) theme-color meta  2) --primary CSS var  3) nothing sent */
+  try {
+    var _tc = '';
+    var _tcMeta = document.querySelector('meta[name="theme-color"]');
+    if (_tcMeta) {
+      _tc = (_tcMeta.getAttribute('content') || '').trim();
+    }
+    if (!_tc) {
+      var _computed = window.getComputedStyle(document.documentElement);
+      _tc = (_computed.getPropertyValue('--primary') ||
+             _computed.getPropertyValue('--color-primary') ||
+             _computed.getPropertyValue('--brand-color') || '').trim();
+    }
+    if (_tc && window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LG_THEME_COLOR', color: _tc }));
+    }
+  } catch (_) {}
+
   /* Watch for dynamically injected <style> tags (code-split chunks, etc.) */
   if (typeof MutationObserver !== 'undefined') {
     new MutationObserver(function (mutations) {
@@ -565,6 +585,7 @@ export function BrowserScreen({
   const webViewRef = useRef<WebView>(null);
   const styles = makeStyles(theme);
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
+  const [pageColor, setPageColor] = useState<string | null>(null);
 
   const handleRetry = useCallback(() => {
     setErrorKind(null);
@@ -674,6 +695,8 @@ export function BrowserScreen({
           });
         } else if (msg.type === 'LG_NOTIFICATION') {
           onShowNotification(msg.title || 'LifeGate', msg.body || '');
+        } else if (msg.type === 'LG_THEME_COLOR' && msg.color) {
+          setPageColor(msg.color);
         }
       } catch (_) {}
     },
@@ -778,7 +801,7 @@ export function BrowserScreen({
           behind the transparent Android system nav bar. Works in both Expo Go
           and APK without needing NavigationBar API (blocked in edge-to-edge). */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: theme.primary }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || theme.primary }]} />
       )}
     </View>
   );
