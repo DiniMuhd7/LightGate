@@ -11,6 +11,7 @@ import {
   PermissionsAndroid,
 } from 'react-native';
 import WebView, { WebViewNavigation } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from '../theme';
 import { Tab } from '../hooks/useTabs';
 
@@ -695,8 +696,11 @@ export function BrowserScreen({
     return false;
   }, []);
 
+  const insets = useSafeAreaInsets();
+  const bottomPad = Platform.OS === 'android' ? insets.bottom : 0;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, bottomPad > 0 && { paddingBottom: bottomPad }]}>
       {/* WebView or new-tab placeholder */}
       {isNewTab ? (
         <View style={styles.newTabPlaceholder}>
