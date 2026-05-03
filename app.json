@@ -57,6 +57,14 @@
           "androidMode": "default",
           "androidCollapsedTitle": "LifeGate"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableJetifier": true
+          }
+        }
       ]
     ],
     "extra": {
