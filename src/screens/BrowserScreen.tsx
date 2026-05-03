@@ -2,6 +2,7 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
+  Image,
   Animated,
   StyleSheet,
   Platform,
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   PermissionsAndroid,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import WebView, { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from '../theme';
@@ -315,103 +317,119 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
 true;
 ` : 'true;';
 
-// ── Heart-rate / ECG loading animation ───────────────────────────────────────
-function HeartbeatLoader({ color }: { color: string }) {
-  const progress = useRef(new Animated.Value(0)).current;
+// ── LifeGate Splash Loader ────────────────────────────────────────────────────
+function SplashLoader() {
+  const ring1 = useRef(new Animated.Value(0)).current;
+  const ring2 = useRef(new Animated.Value(0)).current;
+  const dot1  = useRef(new Animated.Value(0.3)).current;
+  const dot2  = useRef(new Animated.Value(0.3)).current;
+  const dot3  = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    let cancelled = false;
-    function pulse() {
-      if (cancelled) return;
-      progress.setValue(0);
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 1600,
-        useNativeDriver: false,
-      }).start(({ finished }) => {
-        if (finished && !cancelled) setTimeout(pulse, 250);
-      });
+    function makeRing(anim: Animated.Value, delay: number) {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 1400, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 0,    useNativeDriver: true }),
+        ])
+      );
     }
-    pulse();
-    return () => { cancelled = true; };
-  }, [progress]);
+    function makeDot(anim: Animated.Value, delay: number) {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1,   duration: 300, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600),
+        ])
+      );
+    }
+    const r1 = makeRing(ring1, 0);
+    const r2 = makeRing(ring2, 700);
+    const d1 = makeDot(dot1, 0);
+    const d2 = makeDot(dot2, 200);
+    const d3 = makeDot(dot3, 400);
+    r1.start(); r2.start(); d1.start(); d2.start(); d3.start();
+    return () => { r1.stop(); r2.stop(); d1.stop(); d2.stop(); d3.stop(); };
+  }, [ring1, ring2, dot1, dot2, dot3]);
 
-  // ECG waveform path: [x1, y1, x2, y2] within a 160 × 48 canvas
-  const SEGS: [number, number, number, number][] = [
-    [0,   34, 22,  34],  // baseline left
-    [22,  34, 28,  28],  // P wave rise
-    [28,  28, 34,  34],  // P wave fall
-    [34,  34, 52,  34],  // baseline
-    [52,  34, 57,  40],  // Q dip
-    [57,  40, 66,   2],  // R rise (main spike)
-    [66,   2, 75,  44],  // S fall
-    [75,  44, 81,  34],  // back to baseline
-    [81,  34, 98,  34],  // baseline
-    [98,  34, 109, 18],  // T wave rise
-    [109, 18, 121, 34],  // T wave fall
-    [121, 34, 160, 34],  // baseline right
-  ];
-
-  const W = 160;
-  const H = 48;
-  const STROKE = 2.5;
-
-  function seg(x1: number, y1: number, x2: number, y2: number, c: string) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len = Math.hypot(dx, dy);
-    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return {
-      position: 'absolute' as const,
-      width: len,
-      height: STROKE,
-      backgroundColor: c,
-      left: (x1 + x2) / 2 - len / 2,
-      top: (y1 + y2) / 2 - STROKE / 2,
-      transform: [{ rotate: `${angle}deg` }],
-    };
-  }
-
-  const clipW = progress.interpolate({ inputRange: [0, 1], outputRange: [0, W] });
+  const ringScale1   = ring1.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] });
+  const ringOpacity1 = ring1.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.55, 0.25, 0] });
+  const ringScale2   = ring2.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] });
+  const ringOpacity2 = ring2.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.55, 0.25, 0] });
 
   return (
-    <View style={{ width: W, height: H }}>
-      {/* Dim ghost path always visible */}
-      {SEGS.map(([x1, y1, x2, y2], i) => (
-        <View key={`g${i}`} style={seg(x1, y1, x2, y2, color + '28')} />
-      ))}
-      {/* Animated bright path revealed left-to-right */}
-      <Animated.View
-        style={{
-          position: 'absolute', top: 0, left: 0,
-          width: clipW, height: H, overflow: 'hidden',
-        }}
-      >
-        <View style={{ position: 'absolute', top: 0, left: 0, width: W, height: H }}>
-          {SEGS.map(([x1, y1, x2, y2], i) => (
-            <View key={`b${i}`} style={seg(x1, y1, x2, y2, color)} />
-          ))}
-        </View>
-        {/* Glowing scan-head dot at leading edge */}
-        <View
-          style={{
-            position: 'absolute',
-            right: -4,
-            top: H / 2 - 5,
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            backgroundColor: color,
-            shadowColor: color,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 1,
-            shadowRadius: 8,
-            elevation: 6,
-          }}
+    <LinearGradient
+      colors={['#0B5E52', '#0AADA2']}
+      start={{ x: 0.2, y: 0 }}
+      end={{ x: 0.8, y: 1 }}
+      style={splashStyles.root}
+    >
+      <View style={splashStyles.iconWrap}>
+        <Animated.View style={[splashStyles.ring, { transform: [{ scale: ringScale1 }], opacity: ringOpacity1 }]} />
+        <Animated.View style={[splashStyles.ring, { transform: [{ scale: ringScale2 }], opacity: ringOpacity2 }]} />
+        <Image
+          source={require('../../icons/icon-192.png')}
+          style={splashStyles.icon}
+          resizeMode="contain"
         />
-      </Animated.View>
-    </View>
+      </View>
+      <Text style={splashStyles.wordmark}>LifeGate</Text>
+      <View style={splashStyles.dotsRow}>
+        {([dot1, dot2, dot3] as Animated.Value[]).map((d, i) => (
+          <Animated.View key={i} style={[splashStyles.dot, { opacity: d }]} />
+        ))}
+      </View>
+    </LinearGradient>
   );
 }
+
+const splashStyles = StyleSheet.create({
+  root: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWrap: {
+    width: 140,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ring: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.65)',
+  },
+  icon: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+  },
+  wordmark: {
+    marginTop: 32,
+    fontSize: 22,
+    fontWeight: '700' as const,
+    letterSpacing: 5,
+    color: '#ffffff',
+    opacity: 0.95,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    marginTop: 28,
+    gap: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ffffff',
+  },
+});
 
 type ErrorKind = 'offline' | 'notfound' | 'server' | 'generic';
 
@@ -802,12 +820,7 @@ export function BrowserScreen({
           showsHorizontalScrollIndicator={false}
           /* ── Error / Loading ── */
           startInLoadingState
-          renderLoading={() => (
-            <View style={styles.loadingOverlay}>
-              <HeartbeatLoader color="#22C55E" />
-              <Text style={styles.loadingBrand}>LifeGate</Text>
-            </View>
-          )}
+          renderLoading={() => <SplashLoader />}
           /* Suppress native WebView error UI — our overlay handles it */
           renderError={() => <View />}
           /* ── Navigation ── */
@@ -847,20 +860,6 @@ function makeStyles(theme: Theme) {
     },
     navBarStrip: {
       width: '100%',
-    },
-    loadingOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#ffffff',
-    },
-    loadingBrand: {
-      marginTop: 20,
-      fontSize: 18,
-      fontWeight: '600' as const,
-      letterSpacing: 2,
-      color: '#22C55E',
-      opacity: 0.85,
     },
     newTabPlaceholder: {
       flex: 1,
