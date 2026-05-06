@@ -534,6 +534,100 @@ const SAB_FIX_SCRIPT = Platform.OS === 'android' ? `
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
 })();
+
+/* ── 10. Web Push API shim ───────────────────────────────────────────
+   WebView blocks ServiceWorker and PushManager.  We shim them so that
+   websites which check  'serviceWorker' in navigator  or
+   'PushManager' in window  don't report "push not supported".
+
+   When the site calls  pushManager.subscribe()  we return a fake
+   PushSubscription whose endpoint encodes the Expo push token so the
+   backend receives a usable address.                                  */
+if (!window.__lgPushPatched) {
+  window.__lgPushPatched = true;
+
+  function _FakePushSubscription(token) {
+    this.endpoint = 'https://exp.host/--/api/v2/push/send?token=' + encodeURIComponent(token || '');
+    this.expirationTime = null;
+    this.options = { userVisibleOnly: true, applicationServerKey: null };
+    this.getKey = function () { return null; };
+    this.toJSON = function () {
+      return { endpoint: this.endpoint, expirationTime: null, keys: {} };
+    };
+    this.unsubscribe = function () { return Promise.resolve(true); };
+    this.addEventListener = function () {};
+    this.removeEventListener = function () {};
+  }
+
+  function _FakePushManager() {}
+  _FakePushManager.prototype.subscribe = function () {
+    return new Promise(function (resolve) {
+      var t = window.__lgPushToken;
+      if (t) { resolve(new _FakePushSubscription(t)); return; }
+      var handler = function (e) {
+        window.removeEventListener('lgpushtoken', handler);
+        resolve(new _FakePushSubscription(e.detail.token));
+      };
+      window.addEventListener('lgpushtoken', handler);
+      setTimeout(function () {
+        window.removeEventListener('lgpushtoken', handler);
+        resolve(new _FakePushSubscription(''));
+      }, 12000);
+    });
+  };
+  _FakePushManager.prototype.getSubscription = function () {
+    return Promise.resolve(
+      window.__lgPushToken ? new _FakePushSubscription(window.__lgPushToken) : null
+    );
+  };
+  _FakePushManager.prototype.permissionState = function () {
+    return Promise.resolve('granted');
+  };
+
+  /* Expose PushManager globally so  'PushManager' in window  is true */
+  try { window.PushManager = _FakePushManager; } catch (_) {}
+
+  /* Shim navigator.serviceWorker so SW-based push detection passes */
+  try {
+    var _swReg = {
+      pushManager: new _FakePushManager(),
+      showNotification: function (title, opts) {
+        try { new window.Notification(title, opts); } catch (_) {}
+        return Promise.resolve();
+      },
+      getNotifications: function () { return Promise.resolve([]); },
+      scope: '/',
+      active: { postMessage: function () {}, state: 'activated' },
+      waiting: null,
+      installing: null,
+      addEventListener: function () {},
+      removeEventListener: function () {},
+    };
+    var _swContainer = {
+      ready: Promise.resolve(_swReg),
+      register: function () { return Promise.resolve(_swReg); },
+      getRegistration: function () { return Promise.resolve(_swReg); },
+      getRegistrations: function () { return Promise.resolve([_swReg]); },
+      controller: { postMessage: function () {}, state: 'activated' },
+      addEventListener: function () {},
+      removeEventListener: function () {},
+    };
+    if (!('serviceWorker' in navigator)) {
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: _swContainer, writable: false, configurable: true,
+      });
+    } else {
+      /* Already present — patch pushManager onto any existing registration */
+      try {
+        navigator.serviceWorker.ready.then(function (reg) {
+          if (reg && !reg.pushManager) {
+            try { reg.pushManager = new _FakePushManager(); } catch (_) {}
+          }
+        }).catch(function () {});
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
 true;
 ` : 'true;';
 
