@@ -18,6 +18,7 @@ import WebView, { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from '../theme';
 import { Tab } from '../hooks/useTabs';
+import { DEFAULT_URL } from '../utils/constants';
 
 // Spoof a real Chrome UA so React apps receive first-class browser builds,
 // service workers register, and modern APIs are unlocked.
@@ -1262,6 +1263,7 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
         <WebView
           ref={webViewRef}
           source={{ uri: tab.url }}
+          cacheEnabled={tab.url !== DEFAULT_URL}
           style={styles.webview}
           /* ── Identity ── */
           userAgent={CHROME_UA}
