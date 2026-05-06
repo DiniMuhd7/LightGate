@@ -651,39 +651,64 @@ const splashStyles = StyleSheet.create({
   },
 });
 
-type ErrorKind = 'offline' | 'notfound' | 'server' | 'generic';
+type ErrorKind = 'offline' | 'notfound' | 'server' | 'generic' | 'auth' | 'forbidden' | 'ssl';
 
 function ErrorPage({ kind, theme, onRetry }: { kind: ErrorKind; theme: Theme; onRetry: () => void }) {
   const cfg = {
     offline: {
-      badge: '~',
+      badge: '\u{1F4F5}',
       title: 'No Internet',
       body: 'You\'re offline. Check your Wi-Fi or\nmobile data and try again.',
       action: 'Try Again',
+      icon: '\u21BB', // ↻
     },
     notfound: {
       badge: '404',
       title: 'Page Not Found',
       body: 'The page you requested could not\nbe found.',
       action: 'Go Back',
+      icon: '\u2190', // ←
     },
     server: {
-      badge: '!',
+      badge: '500',
       title: 'Server Error',
       body: 'Something went wrong on the server.\nPlease try again shortly.',
       action: 'Try Again',
+      icon: '\u21BB',
+    },
+    auth: {
+      badge: '401',
+      title: 'Login Required',
+      body: 'You need to be signed in to\nview this page.',
+      action: 'Go Back',
+      icon: '\u2190',
+    },
+    forbidden: {
+      badge: '403',
+      title: 'Access Denied',
+      body: 'You don\'t have permission to\nview this page.',
+      action: 'Go Back',
+      icon: '\u2190',
+    },
+    ssl: {
+      badge: '\uD83D\uDD12',
+      title: 'Connection Not Secure',
+      body: 'LifeGate couldn\'t establish a secure\nconnection to this page.',
+      action: 'Try Again',
+      icon: '\u21BB',
     },
     generic: {
       badge: '!',
       title: 'Something Went Wrong',
       body: 'This page couldn\'t be loaded.\nPlease try again.',
       action: 'Try Again',
+      icon: '\u21BB',
     },
   }[kind];
 
   return (
     <View style={[epStyles.root, { backgroundColor: theme.background }]}>
-      {/* Decorative top bar matching LifeGate blue */}
+      {/* Decorative top bar matching LifeGate teal */}
       <View style={[epStyles.topAccent, { backgroundColor: theme.primary }]} />
 
       <View style={epStyles.card}>
@@ -703,7 +728,7 @@ function ErrorPage({ kind, theme, onRetry }: { kind: ErrorKind; theme: Theme; on
         {/* Divider */}
         <View style={[epStyles.divider, { backgroundColor: theme.border }]} />
 
-        {/* Action button */}
+        {/* Action button with icon */}
         <TouchableOpacity
           style={[epStyles.btn, { backgroundColor: theme.primary }]}
           onPress={onRetry}
@@ -711,11 +736,12 @@ function ErrorPage({ kind, theme, onRetry }: { kind: ErrorKind; theme: Theme; on
           accessibilityRole="button"
           accessibilityLabel={cfg.action}
         >
+          <Text style={epStyles.btnIcon}>{cfg.icon}</Text>
           <Text style={epStyles.btnText}>{cfg.action}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Bottom watermark — brand only, no URL */}
+      {/* Bottom watermark */}
       <Text style={[epStyles.watermark, { color: theme.textMuted }]}>LifeGate</Text>
     </View>
   );
@@ -786,16 +812,24 @@ const epStyles = StyleSheet.create({
     marginVertical: 24,
   },
   btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingHorizontal: 36,
     paddingVertical: 13,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
     elevation: 2,
     shadowColor: '#1a73e8',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
+  },
+  btnIcon: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   btnText: {
     color: '#ffffff',
@@ -919,8 +953,11 @@ export function BrowserScreen({
   const handleHttpError = useCallback(
     (event: { nativeEvent: { statusCode: number } }) => {
       const { statusCode } = event.nativeEvent;
-      if (statusCode === 404) setErrorKind('notfound');
-      else if (statusCode >= 500) setErrorKind('server');
+      if (statusCode === 404)                            setErrorKind('notfound');
+      else if (statusCode === 401)                       setErrorKind('auth');
+      else if (statusCode === 403)                       setErrorKind('forbidden');
+      else if (statusCode >= 500)                        setErrorKind('server');
+      else if (statusCode >= 400)                        setErrorKind('generic'); // 429, other 4xx
     },
     [],
   );
@@ -1159,8 +1196,8 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           /* ── Error / Loading ── */
           startInLoadingState
           renderLoading={() => <SplashLoader />}
-          /* Suppress native WebView error UI — our overlay handles it */
-          renderError={() => <View />}
+          /* Suppress native WebView error UI — our ErrorPage handles it */
+          renderError={() => { setErrorKind('ssl'); return <View />; }}
           /* ── Navigation ── */
           onNavigationStateChange={handleNavigationStateChange}
           onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
