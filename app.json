@@ -34,6 +34,7 @@
         "backgroundColor": "#0B5E52"
       },
       "package": "com.dinimuhd7.lifegate",
+      "navigationBarColor": "#0AADA2",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "RECORD_AUDIO",
