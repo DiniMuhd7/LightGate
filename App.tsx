@@ -107,19 +107,20 @@ export default function App() {
   const currentProgress = activeTab ? tabProgress[activeTab.id] ?? 0 : 0;
   const isNewTab = !activeTab?.url;
 
-  if (!settingsLoaded) {
-    return null; // wait for settings hydration
-  }
-
-  const statusBarStyle = resolvedScheme === 'dark' ? 'light' : 'dark';
-
   // Sync Android system navigation bar color with app theme
+  // Must be before any early return to satisfy Rules of Hooks
   useEffect(() => {
     if (Platform.OS === 'android') {
       NavigationBar.setBackgroundColorAsync(theme.background);
       NavigationBar.setButtonStyleAsync(resolvedScheme === 'dark' ? 'light' : 'dark');
     }
   }, [theme.background, resolvedScheme]);
+
+  if (!settingsLoaded) {
+    return null; // wait for settings hydration
+  }
+
+  const statusBarStyle = resolvedScheme === 'dark' ? 'light' : 'dark';
 
   return (
     <SafeAreaProvider>
