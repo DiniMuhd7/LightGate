@@ -1229,7 +1229,7 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           falls back to theme.primary so new-tab and error states always show
           the correct teal rather than a stale colour from a previous page.  */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || theme.primary }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: '#0AADA2' }]} />
       )}
 
       {/* Native camera overlay — shown when the webpage calls getUserMedia({video}).
