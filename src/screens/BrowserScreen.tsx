@@ -989,14 +989,28 @@ export function BrowserScreen({
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Priority 1: camera overlay open → close it
+      if (cameraRequest !== null) {
+        handleCameraCancel();
+        return true;
+      }
+      // Priority 2: error page showing → retry (remounts WebView at current URL)
+      // The WebView is unmounted in error state so goBack() would be a no-op;
+      // retrying is the correct recovery action.
+      if (errorKind !== null) {
+        handleRetry();
+        return true;
+      }
+      // Priority 3: WebView can go back → navigate back in page history
       if (tab.canGoBack) {
         webViewRef.current?.goBack();
-        return true; // swallow the event — don't exit the app
+        return true;
       }
-      return false; // let the OS handle it (exit or go up the nav stack)
+      // Otherwise let the OS handle it (minimize app / go up the nav stack)
+      return false;
     });
     return () => handler.remove();
-  }, [tab.canGoBack]);
+  }, [tab.canGoBack, errorKind, cameraRequest, handleRetry, handleCameraCancel]);
 
   // When user returns to the app from background, dispatch visibility/focus
   // events so the SPA can re-connect WebSockets, restart pollers, etc.
@@ -1210,9 +1224,12 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           accessibilityLabel="Web page viewer"
         />
       )}
-      {/* Edge-to-edge nav bar colour strip */}
+      {/* Edge-to-edge nav bar colour strip — always shown when 3-button nav
+          is active (navBarHeight > 0). Colour tracks the page's brand colour;
+          falls back to theme.primary so new-tab and error states always show
+          the correct teal rather than a stale colour from a previous page.  */}
       {navBarHeight > 0 && (
-        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || '#0AADA2' }]} />
+        <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || theme.primary }]} />
       )}
 
       {/* Native camera overlay — shown when the webpage calls getUserMedia({video}).
