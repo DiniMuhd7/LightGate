@@ -889,15 +889,28 @@ export function BrowserScreen({
       const { code, description = '' } = event.nativeEvent;
       const d = description.toLowerCase();
       const isOffline =
-        code === -1009 || // iOS NSURLErrorNotConnectedToInternet
-        code === -1004 || // iOS NSURLErrorCannotConnectToHost
-        code === -2 ||    // Android ERROR_HOST_LOOKUP
-        code === -6 ||    // Android ERROR_CONNECT
+        // ── iOS error codes ──────────────────────────────────────
+        code === -1009 || // NSURLErrorNotConnectedToInternet
+        code === -1004 || // NSURLErrorCannotConnectToHost
+        code === -1001 || // NSURLErrorTimedOut
+        code === -1003 || // NSURLErrorCannotFindHost
+        code === -1005 || // NSURLErrorNetworkConnectionLost
+        // ── Android WebViewClient error codes ────────────────────
+        code === -2  ||   // ERROR_HOST_LOOKUP
+        code === -6  ||   // ERROR_CONNECT
+        code === -7  ||   // ERROR_IO
+        code === -8  ||   // ERROR_TIMEOUT
+        // ── Chromium / description-based (both platforms) ────────
         d.includes('net::err_internet_disconnected') ||
         d.includes('net::err_name_not_resolved') ||
         d.includes('net::err_connection_refused') ||
+        d.includes('net::err_connection_timed_out') ||
+        d.includes('net::err_connection_reset') ||
+        d.includes('net::err_network_changed') ||
+        d.includes('net::err_address_unreachable') ||
         d.includes('not connected') ||
-        d.includes('network connection was lost');
+        d.includes('network connection was lost') ||
+        d.includes('could not connect to the server');
       setErrorKind(isOffline ? 'offline' : 'generic');
     },
     [],
@@ -1087,11 +1100,19 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
 
   return (
     <View style={styles.container}>
-      {/* WebView or new-tab placeholder */}
+      {/* WebView, new-tab placeholder, or error page.
+          ErrorPage is rendered *instead of* the WebView (not overlaid) so
+          it is never obscured by the WebView's native SurfaceView layer on
+          Android, which always renders above React Native views regardless
+          of zIndex. Unmounting the WebView on error also stops it consuming
+          network resources while offline. It remounts automatically when
+          errorKind is cleared by handleRetry, re-fetching the URL.        */}
       {isNewTab ? (
         <View style={styles.newTabPlaceholder}>
           <Text style={styles.newTabHint}>Enter a URL above to start browsing</Text>
         </View>
+      ) : errorKind !== null ? (
+        <ErrorPage kind={errorKind} theme={theme} onRetry={handleRetry} />
       ) : (
         <WebView
           ref={webViewRef}
@@ -1152,13 +1173,7 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           accessibilityLabel="Web page viewer"
         />
       )}
-      {/* Error overlay — shown over the WebView, never exposes the URL */}
-      {errorKind !== null && (
-        <ErrorPage kind={errorKind} theme={theme} onRetry={handleRetry} />
-      )}
-      {/* Edge-to-edge nav bar colour strip — renders a primary-coloured bar
-          behind the transparent Android system nav bar. Works in both Expo Go
-          and APK without needing NavigationBar API (blocked in edge-to-edge). */}
+      {/* Edge-to-edge nav bar colour strip */}
       {navBarHeight > 0 && (
         <View style={[styles.navBarStrip, { height: navBarHeight, backgroundColor: pageColor || '#0AADA2' }]} />
       )}
