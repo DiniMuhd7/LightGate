@@ -28,7 +28,23 @@ export default function App() {
   const { tabs, activeTabId, activeTab, openTab, closeTab, selectTab, updateTab } = useTabs();
   const { bookmarks, addBookmark, removeBookmark, isBookmarked, loadBookmarks } = useBookmarks();
   const { history, addHistory, clearHistory, loadHistory } = useHistory();
-  const { showWebNotification } = useNotifications();
+  const handleNotificationTap = useCallback(
+    (url: string) => {
+      // Navigate the active tab to the URL embedded in the push notification.
+      const safe = sanitizeUrl(url);
+      if (activeTab) {
+        updateTab(activeTab.id, { url: safe });
+      } else {
+        openTab(safe);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const { showWebNotification, pushToken } = useNotifications({
+    onNotificationTap: handleNotificationTap,
+  });
 
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -129,6 +145,7 @@ export default function App() {
             loadProgress={currentProgress}
             onLoadProgress={handleLoadProgress}
             onShowNotification={showWebNotification}
+            pushToken={pushToken}
             clearCacheSignal={clearCacheSignal}
           />
         ) : null}

@@ -368,6 +368,23 @@ const CHROME_COMPAT_SCRIPT = `
 
     }
 
+    /* ── 8. Push notification token placeholder ───────────────────────
+       window.__lgPushToken is set by the native layer once the Expo push
+       token is obtained. The website can read it directly or subscribe:
+
+         // Option A – if already available:
+         if (window.__lgPushToken) registerToken(window.__lgPushToken);
+
+         // Option B – subscribe for when it arrives:
+         window.__lgOnPushToken = (token) => registerToken(token);
+
+         // Option C – listen to the DOM event:
+         window.addEventListener('lgpushtoken', (e) => registerToken(e.detail.token));
+    */
+    if (window.__lgPushToken === undefined) {
+      window.__lgPushToken = null;
+    }
+
   } catch (_) {}
 })();
 true;
@@ -723,6 +740,12 @@ interface Props {
   loadProgress: number;
   onLoadProgress: (progress: number) => void;
   onShowNotification: (title: string, body: string) => void;
+  /**
+   * Expo push token obtained by the native layer. When set, it is injected
+   * into the WebView as window.__lgPushToken so the website can register
+   * the device with the LifeGate backend for remote push notifications.
+   */
+  pushToken?: string | null;
   clearCacheSignal?: number;
 }
 
@@ -741,6 +764,7 @@ export function BrowserScreen({
   loadProgress,
   onLoadProgress,
   onShowNotification,
+  pushToken = null,
   clearCacheSignal = 0,
 }: Props) {
   const webViewRef = useRef<WebView>(null);
@@ -751,6 +775,22 @@ export function BrowserScreen({
   const [cameraRequest, setCameraRequest] = useState<{ id: string; audio: boolean } | null>(null);
   const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
   const [, requestCameraPermission] = useCameraPermissions();
+
+  // Inject push token into the WebView whenever the token changes or after
+  // a new page finishes loading so every page gets it regardless of SPA routing.
+  const pushTokenRef = useRef<string | null>(null);
+  pushTokenRef.current = pushToken ?? null;
+
+  useEffect(() => {
+    if (!pushToken) return;
+    webViewRef.current?.injectJavaScript(
+      `(function(){
+        window.__lgPushToken=${JSON.stringify(pushToken)};
+        try{if(typeof window.__lgOnPushToken==='function')window.__lgOnPushToken(window.__lgPushToken);}catch(_){}
+        try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__lgPushToken}}));}catch(_){}
+      })();true;`
+    );
+  }, [pushToken]);
 
   const handleRetry = useCallback(() => {
     setErrorKind(null);
@@ -867,6 +907,18 @@ export function BrowserScreen({
         return prev;
       });
       onLoadProgress(0);
+      // Re-inject the push token on every page load so SPA navigations and
+      // hard reloads that replace window always have it available.
+      const token = pushTokenRef.current;
+      if (token) {
+        webViewRef.current?.injectJavaScript(
+          `(function(){\
+window.__lgPushToken=${JSON.stringify(token)};\
+try{if(typeof window.__lgOnPushToken==='function')window.__lgOnPushToken(window.__lgPushToken);}catch(_){}\
+try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__lgPushToken}}));}catch(_){}\
+})();true;`
+        );
+      }
     },
     [onAddHistory, onLoadProgress],
   );
