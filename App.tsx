@@ -111,10 +111,10 @@ export default function App() {
   // Must be before any early return to satisfy Rules of Hooks
   useEffect(() => {
     if (Platform.OS === 'android') {
-      NavigationBar.setBackgroundColorAsync(theme.background);
-      NavigationBar.setButtonStyleAsync(resolvedScheme === 'dark' ? 'light' : 'dark');
+      NavigationBar.setBackgroundColorAsync('#0AADA2');
+      NavigationBar.setButtonStyleAsync('light');
     }
-  }, [theme.background, resolvedScheme]);
+  }, []);
 
   if (!settingsLoaded) {
     return null; // wait for settings hydration
