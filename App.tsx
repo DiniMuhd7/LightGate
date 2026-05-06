@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, useColorScheme, StatusBar, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 
 import { getTheme } from './src/theme';
 import { sanitizeUrl } from './src/utils/url';
@@ -111,6 +112,14 @@ export default function App() {
   }
 
   const statusBarStyle = resolvedScheme === 'dark' ? 'light' : 'dark';
+
+  // Sync Android system navigation bar color with app theme
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setBackgroundColorAsync(theme.background);
+      NavigationBar.setButtonStyleAsync(resolvedScheme === 'dark' ? 'light' : 'dark');
+    }
+  }, [theme.background, resolvedScheme]);
 
   return (
     <SafeAreaProvider>
