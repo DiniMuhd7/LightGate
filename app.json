@@ -43,7 +43,9 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -74,8 +76,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a4da11a9-4348-4b5b-9c84-9cc4c8e95b13"
+        "projectId": "7876cd83-43ce-48f6-b7de-4ba5c85cce9a"
       }
-    }
+    },
+    "owner": "muhdsdeen7"
   }
 }
