@@ -1,2 +1,2 @@
 export const DEFAULT_URL =
-  'https://lifegate-mobile-web.onrender.com/login';
+  'https://mobile.dshub.com.ng/login';
