@@ -473,6 +473,102 @@ const CHROME_COMPAT_SCRIPT = `
       } catch (_) {}
     }
 
+    /* ── 10. Modern API polyfills ─────────────────────────────────────
+       Fills gaps between WebView's embedded V8 and the APIs expected by
+       React 18 (Concurrent), Angular, Vue 3, Vite / esbuild bundles,
+       and popular component libraries (MUI, Ant Design, Chakra UI).    */
+
+    /* requestIdleCallback — React 18 scheduler & route-prefetching     */
+    if (!window.requestIdleCallback) {
+      window.requestIdleCallback = function (cb, opts) {
+        var start = Date.now();
+        return setTimeout(function () {
+          cb({
+            didTimeout: false,
+            timeRemaining: function () { return Math.max(0, 50 - (Date.now() - start)); },
+          });
+        }, (opts && opts.timeout) ? Math.min(opts.timeout, 1) : 1);
+      };
+      window.cancelIdleCallback = function (id) { clearTimeout(id); };
+    }
+
+    /* queueMicrotask — async schedulers in modern frameworks            */
+    if (typeof window.queueMicrotask !== 'function') {
+      window.queueMicrotask = function (fn) {
+        Promise.resolve().then(fn).catch(function (e) {
+          setTimeout(function () { throw e; }, 0);
+        });
+      };
+    }
+
+    /* structuredClone — Angular, Ember, some React state libs           */
+    if (typeof window.structuredClone !== 'function') {
+      window.structuredClone = function (obj) {
+        if (obj === undefined) return undefined;
+        try { return JSON.parse(JSON.stringify(obj)); } catch (_e) { return obj; }
+      };
+    }
+
+    /* crypto.randomUUID — UUID generation in auth / session flows       */
+    if (window.crypto && typeof window.crypto.randomUUID !== 'function') {
+      window.crypto.randomUUID = function () {
+        var b = window.crypto.getRandomValues(new Uint8Array(16));
+        b[6] = (b[6] & 0x0f) | 0x40;
+        b[8] = (b[8] & 0x3f) | 0x80;
+        var h = Array.prototype.map.call(b, function (x) {
+          return ('00' + x.toString(16)).slice(-2);
+        });
+        return (
+          h[0]+h[1]+h[2]+h[3]+'-'+h[4]+h[5]+'-'+h[6]+h[7]+
+          '-'+h[8]+h[9]+'-'+h[10]+h[11]+h[12]+h[13]+h[14]+h[15]
+        );
+      };
+    }
+
+    /* matchMedia — responsive hooks: MUI useMediaQuery, Ant Design etc.
+       WebView may have a broken / missing implementation in some OS
+       versions that causes framework crashes during hydration.           */
+    (function () {
+      var _orig = window.matchMedia;
+      var _test = false;
+      try { _test = typeof _orig('(min-width:0px)').matches === 'boolean'; } catch (_) {}
+      if (!_test) {
+        window.matchMedia = function (query) {
+          /* Resolve a handful of common queries so breakpoints fire correctly */
+          var w = window.innerWidth || 375;
+          var matches = false;
+          var m;
+          if ((m = /min-width:\s*([\d.]+)px/i.exec(query))) matches = w >= parseFloat(m[1]);
+          else if ((m = /max-width:\s*([\d.]+)px/i.exec(query))) matches = w <= parseFloat(m[1]);
+          return {
+            matches: matches,
+            media:   query,
+            onchange: null,
+            addListener:    function () {},
+            removeListener: function () {},
+            addEventListener:    function () {},
+            removeEventListener: function () {},
+            dispatchEvent:  function () { return false; },
+          };
+        };
+      }
+    })();
+
+    /* globalThis — required by esbuild / Rollup UMD bundles            */
+    if (typeof globalThis === 'undefined') {
+      try {
+        Object.defineProperty(window, 'globalThis', { value: window, configurable: true });
+      } catch (_) {}
+    }
+
+    /* performance.now guard — some older WebView builds expose it only
+       after user interaction; ensure it is always callable.            */
+    if (!window.performance || typeof window.performance.now !== 'function') {
+      var _t0 = Date.now();
+      window.performance = window.performance || {};
+      window.performance.now = function () { return Date.now() - _t0; };
+    }
+
   } catch (_) {}
 })();
 true;
@@ -1292,6 +1388,7 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           /* Grant microphone / camera / geolocation on Android           */
           onPermissionRequest={(e) => e.nativeEvent.request.grant(e.nativeEvent.request.resources)}
           /* ── Rendering ── */
+          renderToHardwareTextureAndroid={Platform.OS === 'android'}
           scalesPageToFit={false}
           textZoom={100}
           mixedContentMode="compatibility"
