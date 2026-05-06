@@ -52,7 +52,6 @@
       "favicon": "./icons/icon-192.png"
     },
     "plugins": [
-      "./plugins/withAndroidAutofill",
       "expo-camera",
       [
         "expo-notifications",
@@ -68,8 +67,7 @@
         "expo-build-properties",
         {
           "android": {
-            "enableJetifier": true,
-            "minSdkVersion": 26
+            "enableJetifier": true
           }
         }
       ]
