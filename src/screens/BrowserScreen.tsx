@@ -385,6 +385,93 @@ const CHROME_COMPAT_SCRIPT = `
       window.__lgPushToken = null;
     }
 
+    /* ── 9. Credential autofill — autocomplete attribute injection ────────
+       iOS Password AutoFill (iCloud Keychain) and Android autofill services
+       (Google Password Manager, Samsung Pass, Bitwarden, 1Password …) all
+       rely on autocomplete attributes to identify credential fields.
+       Many SPAs omit them entirely. We infer and add them from form context.
+
+       With the iOS "webcredentials" Associated Domain entitlement in the
+       native app, this unlocks the automatic Password AutoFill bar that
+       appears above the keyboard when the user focuses a username field.
+
+       On Android, this enables the autofill dropdown from any autofill
+       service the user has installed, including third-party managers.    */
+    if (!window.__lgAutofillPatched) {
+      window.__lgAutofillPatched = true;
+
+      function _patchForms() {
+        /* Collect every discrete form, plus a synthetic "form" for
+           formless login layouts common in modern SPAs.               */
+        var formList = Array.prototype.slice.call(document.querySelectorAll('form'));
+        if (!formList.length) {
+          /* Treat the whole document as one implicit form           */
+          formList = [{ _synthetic: true }];
+        }
+
+        formList.forEach(function (form) {
+          var inputs = form._synthetic
+            ? Array.prototype.slice.call(document.querySelectorAll('input'))
+            : Array.prototype.slice.call(
+                form.querySelectorAll ? form.querySelectorAll('input') : (form.elements || [])
+              );
+
+          if (!inputs.length) return;
+
+          var pwInputs = inputs.filter(function (el) { return el.type === 'password'; });
+          if (!pwInputs.length) return;   /* no password field → not a login form */
+
+          /* ── Username / email fields: all visible text/email inputs that
+             appear before the first password field in DOM order.          */
+          var firstPwIdx = inputs.indexOf(pwInputs[0]);
+          var userInputs = inputs
+            .slice(0, firstPwIdx < 0 ? inputs.length : firstPwIdx)
+            .filter(function (el) {
+              return el.type === 'text' || el.type === 'email' || el.type === 'tel';
+            });
+
+          userInputs.forEach(function (el) {
+            /* Only set if the site hasn't already declared a value       */
+            var ac = (el.getAttribute('autocomplete') || '').trim();
+            if (!ac || ac === 'on' || ac === 'off') {
+              el.setAttribute('autocomplete', el.type === 'email' ? 'email' : 'username');
+            }
+            /* Prevent autocorrect / autocapitalize mangling login names  */
+            if (!el.getAttribute('autocorrect'))    el.setAttribute('autocorrect',    'off');
+            if (!el.getAttribute('autocapitalize')) el.setAttribute('autocapitalize', 'none');
+            if (!el.getAttribute('spellcheck'))     el.setAttribute('spellcheck',     'false');
+          });
+
+          /* ── Password fields: first = current-password, rest = new-password
+             (covers both login and sign-up forms in one pass)             */
+          pwInputs.forEach(function (el, idx) {
+            var ac = (el.getAttribute('autocomplete') || '').trim();
+            if (!ac || ac === 'on' || ac === 'off') {
+              el.setAttribute('autocomplete', idx === 0 ? 'current-password' : 'new-password');
+            }
+          });
+        });
+      }
+
+      /* Initial pass — covers SSR pages and already-rendered SPA views   */
+      _patchForms();
+
+      /* MutationObserver — re-patch whenever the DOM changes so SPA
+         navigation (React Router, Next.js, Vue Router …) is handled.    */
+      try {
+        new MutationObserver(function (mutations) {
+          var hasNodes = false;
+          for (var _mi = 0; _mi < mutations.length; _mi++) {
+            if (mutations[_mi].addedNodes.length) { hasNodes = true; break; }
+          }
+          if (hasNodes) setTimeout(_patchForms, 120);
+        }).observe(document.body || document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      } catch (_) {}
+    }
+
   } catch (_) {}
 })();
 true;

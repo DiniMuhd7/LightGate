@@ -22,7 +22,10 @@
         "NSSpeechRecognitionUsageDescription": "LifeGate uses speech recognition so you can speak to websites that support voice input."
       },
       "entitlements": {
-        "aps-environment": "production"
+        "aps-environment": "production",
+        "com.apple.developer.associated-domains": [
+          "webcredentials:lifegate-mobile-web.onrender.com"
+        ]
       }
     },
     "android": {
@@ -46,6 +49,7 @@
       "favicon": "./icons/icon-192.png"
     },
     "plugins": [
+      "./plugins/withAndroidAutofill",
       "expo-camera",
       [
         "expo-notifications",
