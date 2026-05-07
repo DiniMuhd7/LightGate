@@ -97,7 +97,12 @@ const CHROME_COMPAT_SCRIPT = `
       window.__lgPatchedOpen = true;
       var _open = window.open;
       window.open = function (url, target, features) {
-        if (typeof url === 'string' && url.length > 0) {
+        /* Only redirect real http(s) URLs in-page.
+           Exclude about:blank — payment providers open a named blank window
+           first (e.g. window.open('about:blank','paymentFrame')) and then
+           POST a form targeting it. Redirecting to about:blank here would
+           wipe the current page and cause a blank screen on checkout. */
+        if (typeof url === 'string' && url.length > 0 && url !== 'about:blank') {
           window.location.href = url;
           return window;
         }
