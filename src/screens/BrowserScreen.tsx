@@ -36,6 +36,13 @@ const CHROME_UA = Platform.select({
 const CHROME_COMPAT_SCRIPT = `
 (function () {
   try {
+    /* Save the RN bridge reference immediately, before anything else.
+       We will hide it from the page's global scope at the end of this
+       IIFE so payment gateways (Flutterwave, Paystack, Stripe) cannot
+       detect the WebView via  window.ReactNativeWebView  and refuse to
+       render their checkout pages.  All bridge calls below use _rnwv. */
+    var _rnwv = window.ReactNativeWebView;
+
     /* ── 1. Viewport ──────────────────────────────────────── */
     /* On Android WebView, viewport-fit=cover makes env(safe-area-inset-bottom)
        equal the system nav bar height, adding unwanted space above the page's
@@ -175,7 +182,7 @@ const CHROME_COMPAT_SCRIPT = `
 
       function _notify () {
         try {
-          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+          _rnwv && _rnwv.postMessage(
             JSON.stringify({
               type: 'LG_HISTORY',
               canGoBack: window.history.length > 1,
@@ -232,8 +239,8 @@ const CHROME_COMPAT_SCRIPT = `
           }
         }
 
-        if (_tc && window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(
+        if (_tc && _rnwv) {
+          _rnwv.postMessage(
             JSON.stringify({ type: 'LG_THEME_COLOR', color: _tc })
           );
         }
@@ -290,7 +297,7 @@ const CHROME_COMPAT_SCRIPT = `
 
       function _postNotif(title, opts) {
         try {
-          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+          _rnwv && _rnwv.postMessage(
             JSON.stringify({
               type: 'LG_NOTIFICATION',
               title: String(title || ''),
@@ -364,7 +371,7 @@ const CHROME_COMPAT_SCRIPT = `
               window.__lgCameraResolvers = window.__lgCameraResolvers || {};
               window.__lgCameraResolvers[_reqId] = { resolve: resolve, reject: reject };
               try {
-                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                _rnwv && _rnwv.postMessage(
                   JSON.stringify({ type: 'LG_CAMERA_REQUEST', id: _reqId, audio: !!(constraints.audio) })
                 );
               } catch (_e) {
@@ -630,6 +637,21 @@ const CHROME_COMPAT_SCRIPT = `
       window.performance = window.performance || {};
       window.performance.now = function () { return Date.now() - _t0; };
     }
+
+    /* ── 11. Hide WebView fingerprint ────────────────────────────────
+       Payment gateways (Flutterwave, Paystack, Stripe, etc.) check for
+       window.ReactNativeWebView to detect embedded WebViews and may
+       refuse to render checkout pages for fraud-prevention reasons.
+       We shadow the global with undefined so the page's own scripts see
+       nothing; our bridge calls above already captured the reference in
+       _rnwv and continue to work normally.                             */
+    try {
+      Object.defineProperty(window, 'ReactNativeWebView', {
+        value: undefined,
+        writable: false,
+        configurable: false,
+      });
+    } catch (_) {}
 
   } catch (_) {}
 })();
@@ -1425,7 +1447,6 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           style={styles.webview}
           /* ── Identity ── */
           userAgent={CHROME_UA}
-          applicationNameForUserAgent="LifeGate/1.0"
           /* ── JS & Storage ── */
           originWhitelist={['*']}
           javaScriptEnabled={javaScriptEnabled}
