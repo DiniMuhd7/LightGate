@@ -786,7 +786,7 @@ function SplashLoader() {
         <Animated.View style={[splashStyles.ring, { transform: [{ scale: ringScale1 }], opacity: ringOpacity1 }]} />
         <Animated.View style={[splashStyles.ring, { transform: [{ scale: ringScale2 }], opacity: ringOpacity2 }]} />
         <Image
-          source={require('../../icons/icon-192.png')}
+          source={require('../../icons/icon-512.png')}
           style={splashStyles.icon}
           resizeMode="contain"
         />
