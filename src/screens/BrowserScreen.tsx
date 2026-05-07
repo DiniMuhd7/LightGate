@@ -97,17 +97,74 @@ const CHROME_COMPAT_SCRIPT = `
       window.__lgPatchedOpen = true;
       var _open = window.open;
       window.open = function (url, target, features) {
-        /* Only redirect real http(s) URLs in-page.
-           Exclude about:blank — payment providers open a named blank window
-           first (e.g. window.open('about:blank','paymentFrame')) and then
-           POST a form targeting it. Redirecting to about:blank here would
-           wipe the current page and cause a blank screen on checkout. */
+        /* Real URL — navigate in-page */
         if (typeof url === 'string' && url.length > 0 && url !== 'about:blank') {
           window.location.href = url;
           return window;
         }
-        return _open ? _open.call(window, url, target, features) : null;
+
+        /* about:blank — payment SDKs (Paystack, Flutterwave, Stripe 3DS) open
+           a named blank window and then either:
+             (a) set win.location.href = 'https://checkout...'
+             (b) call win.document.write('<form ...>') and submit it
+           With setSupportMultipleWindows=false the native popup cannot open,
+           so we return a lightweight proxy window. Any location assignment on
+           it is forwarded to the main window, which keeps the checkout flow
+           intact instead of leaving a blank screen. */
+        var _fakeWin = {
+          location: (function () {
+            var _href = 'about:blank';
+            return {
+              get href()  { return _href; },
+              set href(u) { _href = u; window.location.href = u; },
+              replace: function (u) { window.location.replace(u); },
+              assign:  function (u) { window.location.assign(u); },
+            };
+          })(),
+          document: {
+            write:    function () {},
+            writeln:  function () {},
+            close:    function () {},
+            open:     function () {},
+          },
+          focus:  function () {},
+          blur:   function () {},
+          close:  function () {},
+          closed: false,
+          opener: window,
+          name:   (typeof target === 'string' ? target : ''),
+        };
+        return _fakeWin;
       };
+
+      /* ── 2b. Form-POST popup pattern ─────────────────────────────
+         Paystack / some 3DS flows create a hidden <form method="POST"
+         target="paymentFrame"> and submit it. Because no real named
+         window exists the submission silently fails.
+         We intercept HTMLFormElement.submit and, for any form whose
+         target is not _self / _parent / _top / empty, change the
+         target to _self so the POST navigates the current WebView.   */
+      if (!window.__lgFormPostPatched) {
+        window.__lgFormPostPatched = true;
+        var _origSubmit = HTMLFormElement.prototype.submit;
+        HTMLFormElement.prototype.submit = function () {
+          var t = (this.getAttribute('target') || '').trim();
+          if (t && t !== '_self' && t !== '_parent' && t !== '_top') {
+            this.setAttribute('target', '_self');
+          }
+          _origSubmit.call(this);
+        };
+        /* Also cover submit events (React-controlled forms etc.) */
+        document.addEventListener('submit', function (e) {
+          var form = e.target;
+          if (form && form.tagName === 'FORM') {
+            var t = (form.getAttribute('target') || '').trim();
+            if (t && t !== '_self' && t !== '_parent' && t !== '_top') {
+              form.setAttribute('target', '_self');
+            }
+          }
+        }, true);
+      }
     }
 
     /* ── 3. SPA history bridge (React Router / Next / Vue) ── 
