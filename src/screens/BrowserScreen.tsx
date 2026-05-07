@@ -1385,10 +1385,42 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
     const { url } = request;
     if (!url) return false;
 
-    // Keep web navigation in-app for standard web schemes.
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('about:')) {
+    // Payment gateway domains that don't render correctly inside WebView.
+    // Open these in the system browser so the user gets a first-class checkout.
+    const PAYMENT_HOSTS = [
+      // Paystack
+      'checkout.paystack.com',
+      'standard.paystack.com',
+      // Flutterwave
+      'checkout.flutterwave.com',
+      'ravepay.co',
+      'api.flutterwave.com',
+      // Stripe
+      'checkout.stripe.com',
+      'hooks.stripe.com',
+      'm.stripe.com',
+      // Interswitch / Quickteller
+      'quickteller.com',
+      'isw.com.ng',
+      // Squad / GTCo
+      'squad.gtco.com',
+      'squadco.com',
+      // Remita
+      'remita.net',
+    ];
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      try {
+        const host = new URL(url).hostname.toLowerCase();
+        if (PAYMENT_HOSTS.some(h => host === h || host.endsWith('.' + h))) {
+          Linking.openURL(url).catch(() => undefined);
+          return false;
+        }
+      } catch (_) {}
       return true;
     }
+
+    if (url.startsWith('about:')) return true;
 
     // Hand off non-web schemes (mailto, tel, intent, etc.) to the OS.
     Linking.openURL(url).catch(() => undefined);
