@@ -24,7 +24,8 @@
       "entitlements": {
         "aps-environment": "production",
         "com.apple.developer.associated-domains": [
-          "webcredentials:mobile.dshub.com.ng"
+          "webcredentials:mobile.dshub.com.ng",
+          "webcredentials:lifegate.dshub.com.ng"
         ]
       }
     },
