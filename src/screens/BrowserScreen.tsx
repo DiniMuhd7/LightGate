@@ -18,7 +18,7 @@ import WebView, { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from '../theme';
 import { Tab } from '../hooks/useTabs';
-import { DEFAULT_URL } from '../utils/constants';
+import { APP_ENTRY_URLS, getAlternativeAppUrl } from '../utils/constants';
 
 // Spoof a real Chrome UA so React apps receive first-class browser builds,
 // service workers register, and modern APIs are unlocked.
@@ -1193,9 +1193,22 @@ export function BrowserScreen({
     webViewRef.current?.reload();
   }, []);
 
+  const navigateToAlternativeAppUrl = useCallback((failedUrl?: string) => {
+    const alternativeUrl = getAlternativeAppUrl(failedUrl || tab.url);
+    if (!alternativeUrl) return false;
+
+    setErrorKind(null);
+    onUpdateTab(tab.id, {
+      url: alternativeUrl,
+      title: 'LifeGate',
+    });
+    return true;
+  }, [onUpdateTab, tab.id, tab.url]);
+
   const handleError = useCallback(
-    (event: { nativeEvent: { code: number; description: string } }) => {
-      const { code, description = '' } = event.nativeEvent;
+    (event: { nativeEvent: { code: number; description: string; url?: string } }) => {
+      const { code, description = '', url } = event.nativeEvent;
+      if (navigateToAlternativeAppUrl(url)) return;
       const d = description.toLowerCase();
       const isOffline =
         // ── iOS error codes ──────────────────────────────────────
@@ -1222,19 +1235,20 @@ export function BrowserScreen({
         d.includes('could not connect to the server');
       setErrorKind(isOffline ? 'offline' : 'generic');
     },
-    [],
+    [navigateToAlternativeAppUrl],
   );
 
   const handleHttpError = useCallback(
-    (event: { nativeEvent: { statusCode: number } }) => {
-      const { statusCode } = event.nativeEvent;
+    (event: { nativeEvent: { statusCode: number; url?: string } }) => {
+      const { statusCode, url } = event.nativeEvent;
+      if (statusCode >= 400 && navigateToAlternativeAppUrl(url)) return;
       if (statusCode === 404)                            setErrorKind('notfound');
       else if (statusCode === 401)                       setErrorKind('auth');
       else if (statusCode === 403)                       setErrorKind('forbidden');
       else if (statusCode >= 500)                        setErrorKind('server');
       else if (statusCode >= 400)                        setErrorKind('generic'); // 429, other 4xx
     },
-    [],
+    [navigateToAlternativeAppUrl],
   );
 
   const handleLoadStart = useCallback(() => {
@@ -1475,7 +1489,7 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
         <WebView
           ref={webViewRef}
           source={{ uri: tab.url }}
-          cacheEnabled={tab.url !== DEFAULT_URL}
+          cacheEnabled={!APP_ENTRY_URLS.includes(tab.url as typeof APP_ENTRY_URLS[number])}
           style={styles.webview}
           /* ── Identity ── */
           userAgent={CHROME_UA}
