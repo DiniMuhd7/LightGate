@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dinimuhd7.lifegate",
+      "bundleIdentifier": "com.dshub.lifegate",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "LifeGate needs microphone access for websites that use voice input.",
         "NSCameraUsageDescription": "LifeGate needs camera access for websites that use the camera.",
@@ -24,7 +24,8 @@
       "entitlements": {
         "aps-environment": "production",
         "com.apple.developer.associated-domains": [
-          "webcredentials:mobile.dshub.com.ng"
+          "webcredentials:mobile.dshub.com.ng",
+          "webcredentials:lifegate.dshub.com.ng"
         ]
       }
     },
@@ -46,7 +47,8 @@
         "VIBRATE",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "versionCode": 2
     },
     "web": {
       "favicon": "./icons/icon-192.png"
