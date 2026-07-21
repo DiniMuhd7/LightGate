@@ -1263,6 +1263,14 @@ export function BrowserScreen({
     }
   }, [clearCacheSignal]);
 
+  const handleCameraCancel = useCallback(() => {
+    if (!cameraRequest) return;
+    webViewRef.current?.injectJavaScript(
+      `try{window.__lgCameraError&&window.__lgCameraError(${JSON.stringify(cameraRequest.id)},'NotAllowedError');}catch(_){}true;`
+    );
+    setCameraRequest(null);
+  }, [cameraRequest]);
+
   // Pre-request OS-level camera & microphone permissions on Android.
   // The manifest declaration alone is not enough — dangerous permissions
   // must be explicitly granted at runtime before getUserMedia can deliver
@@ -1459,13 +1467,6 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
     }
   }, [cameraRequest]);
 
-  const handleCameraCancel = useCallback(() => {
-    if (!cameraRequest) return;
-    webViewRef.current?.injectJavaScript(
-      `try{window.__lgCameraError&&window.__lgCameraError(${JSON.stringify(cameraRequest.id)},'NotAllowedError');}catch(_){}true;`
-    );
-    setCameraRequest(null);
-  }, [cameraRequest]);
 
   const insets = useSafeAreaInsets();
   const navBarHeight = Platform.OS === 'android' ? insets.bottom : 0;
@@ -1515,7 +1516,9 @@ try{window.dispatchEvent(new CustomEvent('lgpushtoken',{detail:{token:window.__l
           /* Auto-grant microphone / camera to the WebView on iOS         */
           mediaCapturePermissionGrantType="grant"
           /* Grant microphone / camera / geolocation on Android           */
-          onPermissionRequest={(e) => e.nativeEvent.request.grant(e.nativeEvent.request.resources)}
+          {...({
+            onPermissionRequest: (e: any) => e.nativeEvent.request.grant(e.nativeEvent.request.resources),
+          } as any)}
           /* ── Rendering ── */
           renderToHardwareTextureAndroid={Platform.OS === 'android'}
           scalesPageToFit={false}
