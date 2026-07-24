@@ -50,3 +50,6 @@ env/
 *.egg-info/
 dist/
 .eggs/
+# EAS local signing credentials
+credentials.json
+android/keystores/
