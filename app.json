@@ -2,7 +2,7 @@
   "expo": {
     "name": "LifeGate",
     "slug": "lifegate",
-    "version": "1.0.12",
+    "version": "1.0.13",
     "orientation": "portrait",
     "icon": "./icons/icon-512.png",
     "userInterfaceStyle": "automatic",
@@ -48,7 +48,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 12
+      "versionCode": 13
     },
     "web": {
       "favicon": "./icons/icon-192.png"
