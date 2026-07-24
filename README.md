@@ -103,7 +103,7 @@ key alias, and key password before building.
 
 Expected Play Console certificates:
 
-- App signing key certificate SHA-1: `EF:7F:56:11:ED:A1:22:30:B6:2E:BE:D6:E1:CF:0B:4B:36:2A:0B:6E`
+- App signing key certificate SHA-1: `9D:DE:13:B8:4A:8C:94:96:12:B0:00:E2:94:00:57:D7:98:0D:34:46`
 - Upload key certificate SHA-1: `06:C3:63:B2:B6:43:F7:2F:69:35:F4:DF:3F:48:FC:7B:41:2B:36:2C`
 
 Verify the upload keystore fingerprint before building:
