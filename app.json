@@ -2,7 +2,7 @@
   "expo": {
     "name": "LifeGate",
     "slug": "lifegate",
-    "version": "1.0.12",
+    "version": "1.0.13",
     "orientation": "portrait",
     "icon": "./icons/icon-512.png",
     "userInterfaceStyle": "automatic",
@@ -48,7 +48,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 12
+      "versionCode": 13
     },
     "web": {
       "favicon": "./icons/icon-192.png"
@@ -77,6 +77,10 @@
     "extra": {
       "eas": {
         "projectId": "7876cd83-43ce-48f6-b7de-4ba5c85cce9a"
+      },
+      "androidSigning": {
+        "appSigningKeyCertificateSha1": "EF:7F:56:11:ED:A1:22:30:B6:2E:BE:D6:E1:CF:0B:4B:36:2A:0B:6E",
+        "uploadKeyCertificateSha1": "06:C3:63:B2:B6:43:F7:2F:69:35:F4:DF:3F:48:FC:7B:41:2B:36:2C"
       }
     },
     "owner": "muhdsdeen7"
