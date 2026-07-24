@@ -91,6 +91,24 @@ LightGate/
 
 <!-- Add screenshots here after first run -->
 
+
+## Android Play Store release
+
+Production Android App Bundles are configured to use EAS remote credentials so
+Play Store uploads are signed with the configured upload key instead of a local
+keystore.
+
+Expected Play Console certificates:
+
+- App signing key certificate SHA-1: `EF:7F:56:11:ED:A1:22:30:B6:2E:BE:D6:E1:CF:0B:4B:36:2A:0B:6E`
+- Upload key certificate SHA-1: `06:C3:63:B2:B6:43:F7:2F:69:35:F4:DF:3F:48:FC:7B:41:2B:36:2C`
+
+Build the production App Bundle with:
+
+```bash
+npx eas build --platform android --profile production
+```
+
 ---
 
 ## License
