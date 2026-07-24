@@ -91,6 +91,33 @@ LightGate/
 
 <!-- Add screenshots here after first run -->
 
+
+## Android Play Store release
+
+Production Android App Bundles are configured to use EAS local credentials so
+the release is signed with the Google Play upload key that Play Console expects.
+Do not commit the real `credentials.json` file or keystore. Copy
+`credentials.example.json` to `credentials.json`, place the upload keystore at
+`android/keystores/lifegate-upload-key.jks`, and fill in the keystore password,
+key alias, and key password before building.
+
+Expected Play Console certificates:
+
+- App signing key certificate SHA-1: `9D:DE:13:B8:4A:8C:94:96:12:B0:00:E2:94:00:57:D7:98:0D:34:46`
+- Upload key certificate SHA-1: `06:C3:63:B2:B6:43:F7:2F:69:35:F4:DF:3F:48:FC:7B:41:2B:36:2C`
+
+Verify the upload keystore fingerprint before building:
+
+```bash
+./scripts/verify-android-upload-key.sh android/keystores/lifegate-upload-key.jks <key-alias>
+```
+
+Build the production App Bundle with:
+
+```bash
+npx eas build --platform android --profile production
+```
+
 ---
 
 ## License
