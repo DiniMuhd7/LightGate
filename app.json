@@ -34,7 +34,7 @@
         "foregroundImage": "./icons/icon-512.png",
         "backgroundColor": "#0B5E52"
       },
-      "package": "com.dinimuhd7.lifegate",
+      "package": "com.dshub.lifegate",
       "navigationBarColor": "#0AADA2",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
@@ -48,7 +48,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 2
+      "versionCode": 11
     },
     "web": {
       "favicon": "./icons/icon-192.png"
