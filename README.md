@@ -101,6 +101,10 @@ Do not commit the real `credentials.json` file or keystore. Copy
 `android/keystores/lifegate-upload-key.jks`, and fill in the keystore password,
 key alias, and key password before building.
 
+The Android manifest marks camera, microphone, and location hardware as optional
+so Play Store does not filter out devices that lack one of those hardware
+features. Runtime permissions are still requested only when a website needs them.
+
 Expected Play Console certificates:
 
 - App signing key certificate SHA-1: `9D:DE:13:B8:4A:8C:94:96:12:B0:00:E2:94:00:57:D7:98:0D:34:46`
